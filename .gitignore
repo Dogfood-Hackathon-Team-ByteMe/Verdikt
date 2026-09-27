@@ -1,0 +1,36 @@
+# Dependencies. ~200 MB across the two packages; the lockfiles are committed
+# instead, which is what makes an install reproducible.
+node_modules/
+
+# Build output
+dist/
+dist-preview/
+build/
+*.tsbuildinfo
+
+# Local environment. The .env.example files ARE committed -- they document the
+# variables without carrying any values.
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# mongodb-memory-server downloads a mongod binary for the test suite.
+.cache/
+mongodb-binaries/
+
+# Logs and crash reports
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# Editor and OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Scratch files
+*.local
+tmp/

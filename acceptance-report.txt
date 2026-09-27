@@ -1,0 +1,178 @@
+Verdikt acceptance report
+Generated: 2026-09-26T20:37:44.446Z
+Node: v24.18.0
+Tier claimed: 1
+
+Each suite drives the real Express app over HTTP against a throwaway
+MongoDB replica set. No service is called directly, so every role check
+below is verified at the API level rather than in the UI.
+
+======================================================================
+Authentication and sessions
+======================================================================
+
+POST /api/auth/register
+  PASS  creates an account and issues a session cookie
+  PASS  never returns the password hash
+  PASS  rejects a duplicate email with 409
+  PASS  rejects a short password with 400
+  PASS  ignores isAdmin in the request body (privilege escalation)
+  PASS  normalises the email to lower case
+
+POST /api/auth/login
+  PASS  signs in with correct credentials
+  PASS  rejects a wrong password with 401
+  PASS  gives the same message for an unknown email as for a wrong password
+
+GET /api/auth/me
+  PASS  returns 401 without a session
+  PASS  returns the signed-in user with a resolved role
+
+POST /api/auth/logout
+  PASS  revokes the session so the next request is 401
+  PASS  succeeds when already signed out
+  PASS  kills a stolen token: the old cookie stops working after logout
+
+POST /api/users (admin-only account creation)
+  PASS  rejects a non-admin with 403
+  PASS  rejects an anonymous caller with 401
+
+GET /api/users
+  PASS  never leaks password hashes
+
+17 passed, 0 failed, 17 total
+
+
+======================================================================
+Tier 1 feature set
+======================================================================
+
+T1: event creation with dates, tracks and prizes
+  PASS  an organizer can create an event and becomes its organiser
+  PASS  rejects a submissionsClose in the past
+  PASS  stores configurable prizes and custom questions
+  PASS  a non-organizer cannot update someone else s event
+  PASS  GET /api/events/featured works for an anonymous visitor
+  PASS  tracks are listable by an anonymous visitor
+
+T1: team formation via invite link
+  PASS  the leader can create an invite and another user can accept it
+  PASS  a non-leader cannot create an invite
+  PASS  rejects an unknown invite token with 404
+  PASS  refuses to admit the same user twice
+  PASS  enforces the event s maxTeamSize
+
+T1: leaving a team
+  PASS  a member can remove themselves
+  PASS  a member still cannot remove someone else
+  PASS  the leader cannot leave their own team
+
+T1: project submission, drafts and edits
+  PASS  a team member can create a draft
+  PASS  stores the full T1 submission data model
+  PASS  a non-member cannot edit the project
+  PASS  ignores status and teamId in the request body
+  PASS  submitting flips the status and stamps submittedAt
+  PASS  refuses to submit without a track
+  PASS  refuses to submit without answering a required custom question
+  PASS  a team can only have one project
+
+T1: deadline enforcement actually prevents submissions
+  PASS  blocks creating a project after the deadline
+  PASS  blocks editing a draft after the deadline
+  PASS  blocks submitting after the deadline
+  PASS  blocks deleting after the deadline
+  PASS  a project submitted before the deadline stays submitted after it
+
+T1: public gallery with search and filter
+  PASS  an anonymous visitor sees submitted projects
+  PASS  an anonymous visitor does NOT see drafts
+  PASS  a team member sees their own draft
+  PASS  an unrelated signed-in user does not see someone else s draft
+  PASS  the organizer sees drafts for their own event
+  PASS  searches by title, tagline and tech tag
+  PASS  filters by track, and combines search with the track filter
+  PASS  a regex metacharacter in the search does not crash the endpoint
+  PASS  GET /api/projects/:id 403s on a draft for an anonymous visitor
+
+T1: role checks hold at the API level
+  PASS  an anonymous caller cannot create an event
+  PASS  an anonymous caller cannot create a project
+  PASS  a participant cannot create a track on an event they do not organise
+  PASS  a participant cannot delete another team s project
+  PASS  an admin overrides ownership checks
+  PASS  a malformed id returns 400, not 500
+  PASS  an unknown route returns a JSON 404
+
+43 passed, 0 failed, 43 total
+
+
+======================================================================
+Seeded portal (docker compose equivalent)
+======================================================================
+
+seed script
+  PASS  runs to completion and reports what it made
+
+the seeded portal answers as a visitor
+  PASS  serves a featured event with tracks and prizes
+  PASS  the deadline is in the future, so the countdown is live
+  PASS  the public gallery shows submitted projects only
+  PASS  gallery search and track filtering work
+  PASS  never exposes a password hash anywhere public
+
+the seeded accounts work
+  PASS  every documented demo account can sign in
+  PASS  each account resolves to the role the docs promise
+  PASS  the participant sees their own team draft in the gallery
+  PASS  a judge can read their own ballots and only their own
+  PASS  the organizer can export scores as CSV
+  PASS  a participant cannot export scores
+
+12 passed, 0 failed, 12 total
+
+
+======================================================================
+Regression: previously broken behaviour
+======================================================================
+
+BUG-1: routes referencing an unimported requireAuth
+  PASS  the result and track routers are mounted and reachable
+  PASS  the score list route resolves to a real handler
+
+BUG-2: acceptInvite read `event` before declaring it
+  PASS  accepting an invite does not throw a TDZ ReferenceError
+  PASS  still blocks a judge from joining an event they judge
+
+BUG-3: the public gallery returned nothing to visitors
+  PASS  a submitted project is visible before the deadline passes
+
+BUG-4: password hashes leaked to clients
+  PASS  GET /api/users/:id does not include the hash
+  PASS  the public team list does not include member hashes
+  PASS  the public team list does not expose member email addresses
+  PASS  a single team read does not expose emails either
+
+BUG-5: privilege escalation through mass assignment
+  PASS  register ignores isAdmin
+  PASS  a project update cannot move the project to another team
+
+BUG-6: judges could read peer ballots via GET /api/scores
+  PASS  a judge listing scores sees only their own
+  PASS  a participant cannot list scores at all
+  PASS  an organizer sees every ballot for their event
+
+BUG-7: tracks required an eventId to list
+  PASS  GET /api/tracks works with no query string
+
+error handling
+  PASS  a 500 does not leak the internal exception message
+  PASS  health check responds without touching the database
+
+17 passed, 0 failed, 17 total
+
+
+======================================================================
+TOTAL: 89 passed, 0 failed
+RESULT: Tier 1 acceptance PASSED
+======================================================================

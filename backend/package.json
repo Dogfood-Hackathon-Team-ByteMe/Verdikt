@@ -1,0 +1,30 @@
+{
+  "name": "verdikt-backend",
+  "version": "1.0.0",
+  "description": "Verdikt API: hackathon submissions and judging.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "seed": "node scripts/seed.js",
+    "test": "node tests/all.mjs",
+    "test:auth": "node tests/stageB.auth.mjs",
+    "test:t1": "node tests/stageC.t1.mjs",
+    "test:seed": "node tests/stageD.seed.mjs",
+    "acceptance": "node tests/all.mjs --report ../acceptance-report.txt"
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "mongoose": "^8.7.0"
+  },
+  "allowScripts": {
+    "bcrypt@6.0.0": true
+  },
+  "devDependencies": {
+    "mongodb-memory-server": "^11.3.0"
+  }
+}

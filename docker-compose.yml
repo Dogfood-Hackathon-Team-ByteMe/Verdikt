@@ -1,0 +1,91 @@
+# Verdikt, whole portal, one command:
+#
+#   docker compose up
+#
+# Then open http://localhost:3000. The database is seeded on first start, so
+# there is a live event, eight projects and sign-in-able accounts of every role
+# waiting. No cloud account, no external service, no API keys.
+#
+#   admin@verdikt.dev        / dogfood2026   (admin)
+#   organizer@verdikt.dev    / dogfood2026   (organizer)
+#   judge@verdikt.dev        / dogfood2026   (judge)
+#   participant@verdikt.dev  / dogfood2026   (participant)
+
+services:
+  # MongoDB as a SINGLE-NODE REPLICA SET, not a standalone.
+  #
+  # Several services write a document plus a denormalised pointer to it inside
+  # one transaction (see utils/transaction.js), and MongoDB only offers
+  # transactions on a replica set. One node gives us that without the cost of
+  # a real cluster.
+  mongo:
+    image: mongo:7
+    container_name: verdikt-mongo
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    volumes:
+      - mongo-data:/data/db
+    # The healthcheck doubles as the replica set initiator: rs.status() throws
+    # until the set exists, and the catch initiates it. Once initiated the
+    # command succeeds and the service reports healthy, which is the signal
+    # the other services wait on.
+    healthcheck:
+      test: >
+        mongosh --quiet --eval "try { rs.status().ok } catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongo:27017'}]}).ok }"
+      interval: 5s
+      timeout: 10s
+      retries: 20
+      start_period: 10s
+
+  # One-shot seeder. Runs to completion, then exits; the API does not wait for
+  # it, because an empty database is still a working portal.
+  seed:
+    build:
+      context: ./backend
+    container_name: verdikt-seed
+    command: ["node", "scripts/seed.js"]
+    environment:
+      MONGO_URI: mongodb://mongo:27017/dogfood?replicaSet=rs0
+      SEED_PASSWORD: dogfood2026
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: ./backend
+    container_name: verdikt-api
+    environment:
+      PORT: 8080
+      MONGO_URI: mongodb://mongo:27017/dogfood?replicaSet=rs0
+      NODE_ENV: production
+      # The browser talks to the API through the web container on the same
+      # origin, so this list only matters if you hit the API port directly.
+      CORS_ORIGIN: http://localhost:3000,http://localhost:5173
+      COOKIE_SAMESITE: lax
+    ports:
+      # Published so you can curl the API directly; the SPA does not need it.
+      - "8080:8080"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      seed:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./Frontend
+      args:
+        # "/" = same-origin; nginx proxies /api to the api service.
+        VITE_API_URL: /
+    container_name: verdikt-web
+    ports:
+      - "3000:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  mongo-data:

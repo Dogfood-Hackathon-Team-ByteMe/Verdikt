@@ -1,0 +1,62 @@
+# DOGFOOD 2026 submission manifest.
+
+[project]
+name = "Verdikt"
+tagline = "Open, self-hostable hackathon submissions and judging."
+repo = "https://github.com/your-team/verdikt"
+license = "MIT"
+
+[tiers]
+# Claim only what the acceptance report proves. The spec rewards honest
+# underclaiming over overclaiming, so T2 is listed as partial, not claimed.
+claimed = ["T1"]
+t1 = "complete"
+t2 = "partial"   # scoring, judge isolation and CSV export exist; weighted
+                 # configurable rubrics and cross-judge normalization do not.
+t3 = "none"
+t4 = "none"
+
+[acceptance]
+report = "acceptance-report.txt"
+command = "cd backend && npm install && npm run acceptance"
+tests_total = 89
+tests_passed = 89
+
+[run]
+command = "docker compose up"
+web = "http://localhost:3000"
+api = "http://localhost:8080"
+
+[routes]
+# Paths the frontend depends on.
+auth_register    = "POST /api/auth/register"
+auth_login       = "POST /api/auth/login"
+auth_logout      = "POST /api/auth/logout"
+auth_me          = "GET  /api/auth/me"
+events           = "GET  /api/events"
+event_featured   = "GET  /api/events/featured"
+tracks           = "GET  /api/tracks"
+projects         = "GET  /api/projects?q=&track=&eventId=&status="
+project_detail   = "GET  /api/projects/:id"
+project_submit   = "POST /api/projects/:id/submit"
+project_unsubmit = "POST /api/projects/:id/unsubmit"
+teams            = "GET  /api/teams"
+invite_preview   = "GET  /api/invites/token/:token"
+invite_accept    = "POST /api/invites/token/:token/accept"
+judge_scores     = "GET  /api/judge/scores"
+export_csv       = "GET  /api/export.csv?eventId="
+health           = "GET  /health"
+
+[demo]
+password = "dogfood2026"
+admin = "admin@verdikt.dev"
+organizer = "organizer@verdikt.dev"
+judge = "judge@verdikt.dev"
+participant = "participant@verdikt.dev"
+
+[bonus]
+# Not claimed. Listed so the gap is explicit rather than implied.
+normalization_proof = false
+pairwise_mode = false
+threat_model = false
+api_first = false

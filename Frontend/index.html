@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Verdikt</title>
+    <meta name="description" content="Verdikt: an open, self-hostable platform for hackathon submissions and fair judging." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" />
+  </head>
+  <body>
+    <script>
+      // Apply the saved (or OS) theme before first paint, so there's no flash
+      // of the wrong theme. The toggle in the nav writes this value.
+      try {
+        var saved = localStorage.getItem('verdikt-theme')
+        if (saved === 'dark' || saved === 'light') document.documentElement.dataset.theme = saved
+      } catch (e) {
+        /* private mode or blocked storage: fall back to the OS setting */
+      }
+    </script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
