@@ -14,6 +14,9 @@ const SUITES = [
     ['Tier 1 feature set', 'tests/stageC.t1.mjs'],
     ['Seeded portal (docker compose equivalent)', 'tests/stageD.seed.mjs'],
     ['Regression: previously broken behaviour', 'tests/stageE.regression.mjs'],
+    ['Judging: rubric, ballots and the panel', 'tests/stageF.judging.mjs'],
+    ['Standings: the computed leaderboard', 'tests/stageG.standings.mjs'],
+    ['Tier 2: normalization, assignment, scope, invites, exports', 'tests/stageH.panel.mjs'],
 ];
 
 const reportFlag = process.argv.indexOf('--report');
@@ -45,7 +48,7 @@ const say = (text) => {
 say('Verdikt acceptance report');
 say(`Generated: ${new Date().toISOString()}`);
 say(`Node: ${process.version}`);
-say('Tier claimed: 1');
+say('Tiers claimed: 1, 2');
 say('');
 say('Each suite drives the real Express app over HTTP against a throwaway');
 say('MongoDB replica set. No service is called directly, so every role check');
@@ -77,7 +80,7 @@ for (const [name, file] of SUITES) {
 say('');
 say('='.repeat(70));
 say(`TOTAL: ${totalPassed} passed, ${totalFailed} failed`);
-say(totalFailed === 0 ? 'RESULT: Tier 1 acceptance PASSED' : 'RESULT: FAILED');
+say(totalFailed === 0 ? 'RESULT: Tier 1 and Tier 2 acceptance PASSED' : 'RESULT: FAILED');
 say('='.repeat(70));
 
 if (reportPath) {

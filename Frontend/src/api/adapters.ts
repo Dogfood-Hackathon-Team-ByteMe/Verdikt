@@ -11,7 +11,27 @@
  *     which repository method served it -> `refId()` / `refField()`
  *   - a Mongoose Map serialises to a plain object, but can be absent entirely
  */
-import type { CustomQuestion, HackEvent, Invite, Notification, Prize, Project, Team, Track } from './types'
+import type {
+  Assignment,
+  AssignmentRun,
+  Ballot,
+  Criterion,
+  CustomQuestion,
+  HackEvent,
+  Invite,
+  JudgeInvite,
+  JudgeInvitePreview,
+  JudgeInviteStatus,
+  JudgeProgress,
+  JudgeQueue,
+  Notification,
+  Prize,
+  Project,
+  StandingRow,
+  Standings,
+  Team,
+  Track,
+} from './types'
 
 /** Anything with an id, in either of the two shapes the backend emits. */
 type Ref = string | { _id?: string; id?: string; [key: string]: unknown } | null | undefined
@@ -47,6 +67,7 @@ interface TrackDoc {
   topic?: string
   description?: string
   eventId?: Ref
+  judges?: Ref[]
 }
 
 export function toTrack(doc: TrackDoc): Track {
@@ -56,6 +77,11 @@ export function toTrack(doc: TrackDoc): Track {
     name: doc.topic ?? 'Untitled track',
     description: str(doc.description),
     event_id: refId(doc.eventId) || undefined,
+    judges: (doc.judges ?? []).map((j) => ({
+      id: refId(j),
+      name: refField(j, 'name'),
+      email: refField(j, 'email'),
+    })),
   }
 }
 
@@ -77,6 +103,14 @@ interface QuestionDoc {
   required?: boolean
 }
 
+interface CriterionDoc {
+  key?: string
+  label?: string
+  description?: string
+  weight?: number
+  maxScore?: number
+}
+
 interface EventDoc {
   _id?: string
   name?: string
@@ -87,6 +121,7 @@ interface EventDoc {
   tracks?: TrackDoc[] | string[]
   prizes?: PrizeDoc[]
   customQuestions?: QuestionDoc[]
+  criteria?: CriterionDoc[]
   minTeamSize?: number
   maxTeamSize?: number
   bannerUrl?: string
@@ -115,6 +150,18 @@ function toQuestion(doc: QuestionDoc): CustomQuestion {
   }
 }
 
+function toCriterion(doc: CriterionDoc): Criterion {
+  return {
+    key: doc.key ?? '',
+    label: doc.label ?? '',
+    description: str(doc.description),
+    // A zero weight is meaningful (a line shown but not counted), so only an
+    // absent number falls back to 1.
+    weight: typeof doc.weight === 'number' ? doc.weight : 1,
+    max_score: typeof doc.maxScore === 'number' && doc.maxScore > 0 ? doc.maxScore : 5,
+  }
+}
+
 export function toHackEvent(doc: EventDoc): HackEvent {
   // `tracks` is populated by EventRepository, but fall back gracefully to raw
   // ids so a non-populating endpoint does not blank the track filter.
@@ -134,6 +181,7 @@ export function toHackEvent(doc: EventDoc): HackEvent {
     tracks,
     prizes: (doc.prizes ?? []).map(toPrize),
     custom_questions: (doc.customQuestions ?? []).map(toQuestion).filter((q) => q.key),
+    criteria: (doc.criteria ?? []).map(toCriterion).filter((c) => c.key),
     min_team_size: doc.minTeamSize ?? 1,
     max_team_size: doc.maxTeamSize ?? 4,
     banner_url: str(doc.bannerUrl),
@@ -322,6 +370,16 @@ export function fromEventDraft(draft: Record<string, unknown>): Record<string, u
     }))
   }
 
+  if (Array.isArray(draft.criteria)) {
+    body.criteria = (draft.criteria as Array<Record<string, unknown>>).map((c) => ({
+      key: c.key,
+      label: c.label,
+      description: c.description || undefined,
+      weight: c.weight ?? 1,
+      maxScore: c.max_score ?? 5,
+    }))
+  }
+
   if (Array.isArray(draft.custom_questions)) {
     body.customQuestions = (draft.custom_questions as Array<Record<string, unknown>>).map((q) => ({
       key: q.key,
@@ -333,4 +391,265 @@ export function fromEventDraft(draft: Record<string, unknown>): Record<string, u
   }
 
   return body
+}
+
+// --- Ballot ----------------------------------------------------------------
+
+interface BallotDoc {
+  _id?: string
+  judgeId?: Ref
+  projectId?: Ref
+  eventId?: Ref
+  scores?: Record<string, number>
+  comment?: string
+  updatedAt?: string
+}
+
+export function toBallot(doc: BallotDoc): Ballot {
+  // Mongoose serialises a Map to a plain object; guard anyway, because an old
+  // record written before the rubric existed can have none at all.
+  const raw = (doc.scores ?? {}) as Record<string, unknown>
+  const scores: Record<string, number> = {}
+  for (const [key, value] of Object.entries(raw)) {
+    if (typeof value === 'number') scores[key] = value
+  }
+
+  return {
+    id: doc._id ?? '',
+    judge_id: refId(doc.judgeId),
+    judge_name: refField(doc.judgeId, 'name'),
+    project_id: refId(doc.projectId),
+    event_id: refId(doc.eventId),
+    scores,
+    comment: doc.comment ?? '',
+    updated_at: iso(doc.updatedAt),
+  }
+}
+
+// --- Standings -------------------------------------------------------------
+
+interface StandingRowDoc {
+  projectId?: string
+  title?: string
+  teamId?: string
+  teamName?: string | null
+  trackId?: string | null
+  trackName?: string | null
+  ballotCount?: number
+  assignedCount?: number
+  weightedScore?: number | null
+  normalizedScore?: number | null
+  correctedBallots?: number
+  rank?: number | null
+  trackRank?: number | null
+  perCriterion?: Record<string, number | null>
+}
+
+interface JudgeProgressDoc {
+  judgeId?: string
+  name?: string | null
+  email?: string | null
+  ballotCount?: number
+  assignedCount?: number
+  assignedDone?: number
+  meanScore?: number | null
+  spread?: number | null
+  corrected?: boolean
+  uncorrectedReason?: string | null
+}
+
+interface StandingsDoc {
+  eventId?: string
+  eventName?: string
+  method?: string
+  criteria?: CriterionDoc[]
+  standings?: StandingRowDoc[]
+  normalization?: { groups?: number; correctedBallots?: number; ballots?: number }
+  progress?: {
+    projectCount?: number
+    scoredProjectCount?: number
+    unscoredProjectCount?: number
+    ballotCount?: number
+    assignmentCount?: number
+    judges?: JudgeProgressDoc[]
+  }
+  computedAt?: string
+}
+
+/** A number, or null -- never a silent 0. */
+const num = (value: unknown): number | null => (typeof value === 'number' && Number.isFinite(value) ? value : null)
+
+/**
+ * `null` rather than `0` on both scores and both ranks: null means no judge
+ * has scored this entry, and collapsing that to zero would put an unjudged team
+ * at the bottom of the table as though it had competed and lost.
+ */
+function toStandingRow(doc: StandingRowDoc): StandingRow {
+  return {
+    project_id: doc.projectId ?? '',
+    title: doc.title ?? 'Untitled',
+    team_id: doc.teamId ?? '',
+    team_name: doc.teamName ?? null,
+    track_id: doc.trackId ?? null,
+    track_name: doc.trackName ?? null,
+    ballot_count: doc.ballotCount ?? 0,
+    assigned_count: doc.assignedCount ?? 0,
+    weighted_score: num(doc.weightedScore),
+    normalized_score: num(doc.normalizedScore),
+    corrected_ballots: doc.correctedBallots ?? 0,
+    rank: num(doc.rank),
+    track_rank: num(doc.trackRank),
+    per_criterion: doc.perCriterion ?? {},
+  }
+}
+
+function toJudgeProgress(doc: JudgeProgressDoc): JudgeProgress {
+  const reason = doc.uncorrectedReason
+  return {
+    judge_id: doc.judgeId ?? '',
+    name: doc.name ?? null,
+    email: doc.email ?? null,
+    ballot_count: doc.ballotCount ?? 0,
+    assigned_count: doc.assignedCount ?? 0,
+    assigned_done: doc.assignedDone ?? 0,
+    mean_score: num(doc.meanScore),
+    spread: num(doc.spread),
+    corrected: doc.corrected === true,
+    uncorrected_reason: reason === 'too-few-ballots' || reason === 'no-peers' ? reason : null,
+  }
+}
+
+export function toStandings(doc: StandingsDoc): Standings {
+  const progress = doc.progress ?? {}
+  const norm = doc.normalization ?? {}
+  return {
+    event_id: doc.eventId ?? '',
+    event_name: doc.eventName ?? '',
+    method: doc.method === 'raw' ? 'raw' : 'normalized',
+    criteria: (doc.criteria ?? []).map(toCriterion).filter((c) => c.key),
+    standings: (doc.standings ?? []).map(toStandingRow),
+    normalization: {
+      groups: norm.groups ?? 0,
+      corrected_ballots: norm.correctedBallots ?? 0,
+      ballots: norm.ballots ?? 0,
+    },
+    progress: {
+      project_count: progress.projectCount ?? 0,
+      scored_project_count: progress.scoredProjectCount ?? 0,
+      unscored_project_count: progress.unscoredProjectCount ?? 0,
+      ballot_count: progress.ballotCount ?? 0,
+      assignment_count: progress.assignmentCount ?? 0,
+      judges: (progress.judges ?? []).map(toJudgeProgress),
+    },
+    computed_at: iso(doc.computedAt) ?? new Date().toISOString(),
+  }
+}
+
+// --- Judging queue and assignments -----------------------------------------
+
+export function toJudgeQueue(doc: { mode?: string; projects?: ProjectDoc[] }): JudgeQueue {
+  const mode = doc.mode === 'assigned' || doc.mode === 'tracks' ? doc.mode : 'all'
+  return { mode, projects: (doc.projects ?? []).map(toProject) }
+}
+
+interface AssignmentDoc {
+  _id?: string
+  judgeId?: string
+  judgeName?: string | null
+  judgeEmail?: string | null
+  projectId?: string
+  projectTitle?: string | null
+  trackName?: string | null
+  source?: string
+  scored?: boolean
+}
+
+export function toAssignment(doc: AssignmentDoc): Assignment {
+  const source = doc.source === 'manual' || doc.source === 'ballot' ? doc.source : 'auto'
+  return {
+    id: doc._id ?? '',
+    judge_id: doc.judgeId ?? '',
+    judge_name: doc.judgeName ?? null,
+    judge_email: doc.judgeEmail ?? null,
+    project_id: doc.projectId ?? '',
+    project_title: doc.projectTitle ?? null,
+    track_name: doc.trackName ?? null,
+    source,
+    scored: doc.scored === true,
+  }
+}
+
+interface AssignmentRunDoc {
+  reviewsPerProject?: number
+  dealt?: number
+  adopted?: number
+  total?: number
+  shortfall?: Array<{ projectId?: string; title?: string; trackName?: string | null; assigned?: number; wanted?: number; eligibleJudges?: number }>
+  perJudge?: Array<{ judgeId?: string; name?: string | null; email?: string | null; assigned?: number }>
+}
+
+export function toAssignmentRun(doc: AssignmentRunDoc): AssignmentRun {
+  return {
+    reviews_per_project: doc.reviewsPerProject ?? 0,
+    dealt: doc.dealt ?? 0,
+    adopted: doc.adopted ?? 0,
+    total: doc.total ?? 0,
+    shortfall: (doc.shortfall ?? []).map((s) => ({
+      project_id: s.projectId ?? '',
+      title: s.title ?? 'Untitled',
+      track_name: s.trackName ?? null,
+      assigned: s.assigned ?? 0,
+      wanted: s.wanted ?? 0,
+      eligible_judges: s.eligibleJudges ?? 0,
+    })),
+    per_judge: (doc.perJudge ?? []).map((j) => ({
+      judge_id: j.judgeId ?? '',
+      name: j.name ?? null,
+      email: j.email ?? null,
+      assigned: j.assigned ?? 0,
+    })),
+  }
+}
+
+// --- Judge invites ---------------------------------------------------------
+
+const inviteStatus = (value: unknown): JudgeInviteStatus =>
+  value === 'accepted' || value === 'expired' || value === 'revoked' ? value : 'pending'
+
+export function toJudgeInvite(doc: {
+  _id?: string
+  trackId?: Ref
+  email?: string
+  token?: string
+  status?: string
+  expiresAt?: string
+  acceptedAt?: string
+}): JudgeInvite {
+  return {
+    id: doc._id ?? '',
+    track_id: refId(doc.trackId),
+    email: doc.email ?? '',
+    token: doc.token ?? '',
+    status: inviteStatus(doc.status),
+    expires_at: iso(doc.expiresAt),
+    accepted_at: iso(doc.acceptedAt),
+  }
+}
+
+export function toJudgeInvitePreview(doc: {
+  eventId?: Ref
+  eventName?: string | null
+  trackName?: string | null
+  emailHint?: string
+  status?: string
+  expiresAt?: string
+}): JudgeInvitePreview {
+  return {
+    event_id: refId(doc.eventId),
+    event_name: doc.eventName ?? null,
+    track_name: doc.trackName ?? null,
+    email_hint: doc.emailHint ?? '',
+    status: inviteStatus(doc.status),
+    expires_at: iso(doc.expiresAt),
+  }
 }

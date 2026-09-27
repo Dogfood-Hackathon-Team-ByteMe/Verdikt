@@ -141,6 +141,13 @@ async function seed() {
             { key: 'whatsHard', label: 'What was the hardest part?', type: 'longtext', required: true },
             { key: 'nextStep', label: 'What would you build next?', type: 'longtext', required: false },
         ],
+        // Keys match the seeded ballots below, so the judging screen opens on
+        // real scores rather than on criteria nothing has been scored against.
+        criteria: [
+            { key: 'technical', label: 'Technical depth', description: 'How much is actually built, and how well?', weight: 3, maxScore: 10 },
+            { key: 'originality', label: 'Originality', description: 'Has this been done already?', weight: 2, maxScore: 10 },
+            { key: 'completeness', label: 'Completeness', description: 'Does it hold together end to end?', weight: 2, maxScore: 10 },
+        ],
     });
 
     const tracks = await Track.insertMany(
@@ -151,12 +158,21 @@ async function seed() {
     event.prizes.push({ name: 'Best Judging Engine', amountUsd: 100, trackId: tracks[0]._id });
     await event.save();
 
-    // Spread the judges across the tracks.
-    await Promise.all(judges.map(async (judge, i) => {
-        const track = tracks[i % tracks.length];
-        await Track.findByIdAndUpdate(track._id, { $addToSet: { judges: judge._id } });
-        await User.findByIdAndUpdate(judge._id, { $addToSet: { judgeIn: track._id } });
-    }));
+    // The panel. Every track gets two judges, and the tracks overlap so the
+    // three judges are all connected through shared entries -- which is what
+    // lets cross-judge normalization compare all of them (see JUDGING.md).
+    // Judging Engines, Developer Tools, Infrastructure, Security:
+    const PANEL = [
+        [0, [0, 2, 3]], // Rafael: Judging Engines, Infrastructure, Security
+        [1, [0, 1]],    // Nkechi: Judging Engines, Developer Tools
+        [2, [1, 2, 3]], // Tomas:  Developer Tools, Infrastructure, Security
+    ];
+    for (const [j, trackIdxs] of PANEL) {
+        for (const t of trackIdxs) {
+            await Track.findByIdAndUpdate(tracks[t]._id, { $addToSet: { judges: judges[j]._id } });
+            await User.findByIdAndUpdate(judges[j]._id, { $addToSet: { judgeIn: tracks[t]._id } });
+        }
+    }
 
     await User.findByIdAndUpdate(organizer._id, { $addToSet: { organiserIn: event._id } });
     console.log(`Created event "${event.name}" with ${tracks.length} tracks and ${event.prizes.length} prizes`);
@@ -207,21 +223,47 @@ async function seed() {
     }
     console.log(`Created ${PROJECTS.length} teams and projects (${submitted} submitted, ${PROJECTS.length - submitted} draft)`);
 
-    // --- A few ballots, so judging screens have something to show ---------
-    const submittedProjects = await Project.find({ status: 'submitted' }).limit(4);
+    // --- Judging, half done -------------------------------------------------
+    //
+    // Deterministic ballots with deliberately different judge habits, so the
+    // leaderboard shows normalization doing something: Rafael scores
+    // generously, Tomas harshly, Nkechi in between. Kettle has only been seen by
+    // generous Rafael and Offline First only by harsh Tomas, so their RAW scores
+    // are mostly a verdict on who happened to judge them. Tripwire has no
+    // ballots yet, so the dashboard has an unscored entry to flag.
+    //
+    // Every ballot is inside the judge's own tracks, like the API would insist.
+    const QUALITY = { Quorum: 8, Blindfold: 6, Diffscope: 7, Seedling: 5, Kettle: 8, 'Offline First': 7 };
+    const HABIT = [1.5, 0, -2]; // Rafael, Nkechi, Tomas
+    const WHO = {
+        Quorum: [0, 1],
+        Blindfold: [0, 1],
+        Diffscope: [1, 2],
+        Seedling: [1, 2],
+        Kettle: [0],
+        'Offline First': [2],
+    };
+    const clampScore = (x) => Math.min(10, Math.max(1, Math.round(x)));
+
+    const byTitle = new Map((await Project.find({ eventId: event._id, status: 'submitted' })).map((p) => [p.title, p]));
     const ballots = [];
-    for (const project of submittedProjects) {
-        for (const judge of judges.slice(0, 2)) {
+    for (const [title, judgeIdxs] of Object.entries(WHO)) {
+        const project = byTitle.get(title);
+        if (!project) continue;
+        for (const j of judgeIdxs) {
+            const base = QUALITY[title] + HABIT[j];
             ballots.push({
-                judgeId: judge._id,
+                judgeId: judges[j]._id,
                 eventId: event._id,
                 projectId: project._id,
                 scores: new Map([
-                    ['technical', 6 + Math.floor(Math.random() * 5)],
-                    ['originality', 5 + Math.floor(Math.random() * 6)],
-                    ['completeness', 6 + Math.floor(Math.random() * 5)],
+                    ['technical', clampScore(base)],
+                    ['originality', clampScore(base - 0.5)],
+                    ['completeness', clampScore(base + 0.5)],
                 ]),
-                comment: 'Solid work. The audit trail is the strongest part.',
+                comment: j === 2
+                    ? 'Works, but I expected more polish for the scope.'
+                    : 'Solid work. The audit trail is the strongest part.',
             });
         }
     }
@@ -255,6 +297,11 @@ async function seed() {
         isFeatured: false,
         prizes: [{ name: 'Winner', amountUsd: 250 }],
         customQuestions: [],
+        criteria: [
+            { key: 'technical', label: 'Technical depth', weight: 3, maxScore: 10 },
+            { key: 'originality', label: 'Originality', weight: 2, maxScore: 10 },
+            { key: 'completeness', label: 'Completeness', weight: 2, maxScore: 10 },
+        ],
     });
 
     const closedTrack = await Track.create({

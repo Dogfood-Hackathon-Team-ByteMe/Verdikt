@@ -10,9 +10,26 @@
  * this is same-site; against a separate dev server the API must send CORS
  * `credentials: true` with an explicit origin.
  */
-import { fromEventDraft, fromProjectDraft, toHackEvent, toInvite, toNotification, toProject, toTeam, toTrack } from './adapters'
+import {
+  fromEventDraft,
+  fromProjectDraft,
+  refId,
+  toAssignment,
+  toAssignmentRun,
+  toBallot,
+  toHackEvent,
+  toInvite,
+  toJudgeInvite,
+  toJudgeInvitePreview,
+  toJudgeQueue,
+  toNotification,
+  toProject,
+  toStandings,
+  toTeam,
+  toTrack,
+} from './adapters'
 import type { VerdiktApi } from './client'
-import type { EventDraft, PlatformStats, ProjectDraft, ProjectQuery } from './types'
+import type { BallotDraft, EventDraft, PlatformStats, ProjectDraft, ProjectQuery } from './types'
 import { ApiError, unwrap } from './unwrap'
 
 export const routes = {
@@ -25,6 +42,9 @@ export const routes = {
   unsubmitProject: (id: string) => `/api/projects/${encodeURIComponent(id)}/unsubmit`,
   event: (id: string) => `/api/events/${encodeURIComponent(id)}`,
   track: (id: string) => `/api/tracks/${encodeURIComponent(id)}`,
+  trackJudges: (id: string) => `/api/tracks/${encodeURIComponent(id)}/judges`,
+  trackJudge: (id: string, userId: string) =>
+    `/api/tracks/${encodeURIComponent(id)}/judges/${encodeURIComponent(userId)}`,
   teams: '/api/teams',
   team: (id: string) => `/api/teams/${encodeURIComponent(id)}`,
   teamMember: (teamId: string, userId: string) =>
@@ -33,6 +53,18 @@ export const routes = {
   invite: (token: string) => `/api/invites/token/${encodeURIComponent(token)}`,
   acceptInvite: (token: string) => `/api/invites/token/${encodeURIComponent(token)}/accept`,
   images: '/api/images',
+  scores: '/api/scores',
+  ballot: '/api/scores/ballot',
+  standings: (eventId: string) => `/api/events/${encodeURIComponent(eventId)}/standings`,
+  standingsCsv: (eventId: string) => `/api/events/${encodeURIComponent(eventId)}/standings.csv`,
+  judgeQueue: '/api/judge/queue',
+  assignments: (eventId: string) => `/api/events/${encodeURIComponent(eventId)}/assignments`,
+  autoAssign: (eventId: string) => `/api/events/${encodeURIComponent(eventId)}/assignments/auto`,
+  assignment: (id: string) => `/api/assignments/${encodeURIComponent(id)}`,
+  judgeInvites: (trackId: string) => `/api/tracks/${encodeURIComponent(trackId)}/judge-invites`,
+  judgeInvite: (id: string) => `/api/judge-invites/${encodeURIComponent(id)}`,
+  judgeInviteToken: (token: string) => `/api/judge-invites/token/${encodeURIComponent(token)}`,
+  acceptJudgeInvite: (token: string) => `/api/judge-invites/token/${encodeURIComponent(token)}/accept`,
   notifications: '/api/notifications',
   notificationRead: (id: string) => `/api/notifications/${encodeURIComponent(id)}/read`,
 }
@@ -186,6 +218,11 @@ export function createHttpApi(baseUrl: string): VerdiktApi {
       await unwrap<void>(await send('DELETE', routes.track(id)))
     },
 
+    addTrackJudge: async (trackId, email) => toTrack(await post(routes.trackJudges(trackId), { email })),
+
+    removeTrackJudge: async (trackId, userId) =>
+      toTrack(await unwrap<Record<string, unknown>>(await send('DELETE', routes.trackJudge(trackId, userId)))),
+
     /**
      * Raw bytes, not multipart: the backend mounts express.raw() for image
      * types, which avoids taking on a multipart parser for one endpoint.
@@ -200,6 +237,75 @@ export function createHttpApi(baseUrl: string): VerdiktApi {
       })
       const { url } = await unwrap<{ url: string }>(res)
       return url
+    },
+
+    // --- Judging ----------------------------------------------------------
+    /**
+     * A judge gets their own ballots and an organiser gets their event's; the
+     * server decides which, so this sends the same request either way.
+     *
+     * A 403 comes back as an empty list rather than an error: it means "you
+     * judge nothing here", which is a state the judging screen renders, not a
+     * failure it should show a red box for.
+     */
+    listBallots: async (eventId) => {
+      try {
+        const docs = await get<Record<string, unknown>[]>(routes.scores + qs({ eventId }))
+        return docs.map(toBallot)
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 403) return []
+        throw error
+      }
+    },
+
+    saveBallot: async (draft: BallotDraft) =>
+      toBallot(
+        await put<Record<string, unknown>>(routes.ballot, {
+          projectId: draft.project_id,
+          scores: draft.scores,
+          comment: draft.comment ?? '',
+        }),
+      ),
+
+    getStandings: async (eventId, method) =>
+      toStandings(await get(routes.standings(eventId) + qs({ method }))),
+
+    getJudgeQueue: async (eventId) => toJudgeQueue(await get(routes.judgeQueue + qs({ eventId }))),
+
+    // --- Batch assignment -------------------------------------------------
+    listAssignments: async (eventId) =>
+      (await get<Record<string, unknown>[]>(routes.assignments(eventId))).map(toAssignment),
+
+    autoAssign: async (eventId, reviewsPerProject) =>
+      toAssignmentRun(await post(routes.autoAssign(eventId), { reviewsPerProject })),
+
+    addAssignment: async (eventId, judgeId, projectId) => {
+      await post(routes.assignments(eventId), { judgeId, projectId })
+    },
+
+    removeAssignment: async (id) => {
+      await unwrap<void>(await send('DELETE', routes.assignment(id)))
+    },
+
+    clearAssignments: async (eventId) => {
+      await unwrap<void>(await send('DELETE', routes.assignments(eventId)))
+    },
+
+    // --- Judge invites ----------------------------------------------------
+    listJudgeInvites: async (trackId) =>
+      (await get<Record<string, unknown>[]>(routes.judgeInvites(trackId))).map(toJudgeInvite),
+
+    createJudgeInvite: async (trackId, email) => toJudgeInvite(await post(routes.judgeInvites(trackId), { email })),
+
+    revokeJudgeInvite: async (id) => {
+      await unwrap<void>(await send('DELETE', routes.judgeInvite(id)))
+    },
+
+    getJudgeInvite: async (token) => toJudgeInvitePreview(await get(routes.judgeInviteToken(token))),
+
+    acceptJudgeInvite: async (token) => {
+      const data = await post<{ eventId?: string }>(routes.acceptJudgeInvite(token))
+      return { event_id: refId(data?.eventId) }
     },
 
     // --- Notifications ----------------------------------------------------

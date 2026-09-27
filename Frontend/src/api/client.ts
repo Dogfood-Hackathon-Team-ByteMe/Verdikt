@@ -1,12 +1,21 @@
 import type {
+  Assignment,
+  AssignmentRun,
+  Ballot,
+  BallotDraft,
   EventDraft,
   HackEvent,
   Invite,
+  JudgeInvite,
+  JudgeInvitePreview,
+  JudgeQueue,
   Notification,
   PlatformStats,
   Project,
   ProjectDraft,
   ProjectQuery,
+  RankingMethod,
+  Standings,
   Team,
   Track,
 } from './types'
@@ -65,12 +74,54 @@ export interface VerdiktApi {
   createTrack(input: { event_id: string; name: string; description?: string }): Promise<Track>
   updateTrack(id: string, input: { name?: string; description?: string }): Promise<Track>
   deleteTrack(id: string): Promise<void>
+  /**
+   * Appoint a judge on a track, by email. Assigning them here also lists them
+   * on the event, which is what makes them a judge of it.
+   */
+  addTrackJudge(trackId: string, email: string): Promise<Track>
+  removeTrackJudge(trackId: string, userId: string): Promise<Track>
 
   /**
    * Upload an image and get back the URL to store on a record.
    * The file is sent as the raw body; the backend caps it at 2 MB.
    */
   uploadImage(file: File): Promise<string>
+
+  // --- Judging ------------------------------------------------------------
+  /**
+   * The ballots the caller may read. A judge always gets only their own --
+   * that narrowing is the server's, not this client's.
+   */
+  listBallots(eventId?: string): Promise<Ballot[]>
+  /** Create or replace the caller's ballot for one project. */
+  saveBallot(draft: BallotDraft): Promise<Ballot>
+  /**
+   * The computed leaderboard for one event. Organiser of that event, or admin.
+   * Derived on every read, so it reflects the ballots as they stand.
+   */
+  getStandings(eventId: string, method?: RankingMethod): Promise<Standings>
+
+  /**
+   * The entries the caller may score in this event, as the server decides it:
+   * their batch if the organizer dealt assignments, otherwise their tracks.
+   */
+  getJudgeQueue(eventId: string): Promise<JudgeQueue>
+
+  // --- Batch assignment (organizer) --------------------------------------
+  listAssignments(eventId: string): Promise<Assignment[]>
+  /** Deal, or top up, N reviews per submitted entry across the panel. */
+  autoAssign(eventId: string, reviewsPerProject: number): Promise<AssignmentRun>
+  addAssignment(eventId: string, judgeId: string, projectId: string): Promise<void>
+  removeAssignment(assignmentId: string): Promise<void>
+  clearAssignments(eventId: string): Promise<void>
+
+  // --- Judge invites -----------------------------------------------------
+  listJudgeInvites(trackId: string): Promise<JudgeInvite[]>
+  createJudgeInvite(trackId: string, email: string): Promise<JudgeInvite>
+  revokeJudgeInvite(inviteId: string): Promise<void>
+  /** Public: which event and track, before the holder commits. */
+  getJudgeInvite(token: string): Promise<JudgeInvitePreview>
+  acceptJudgeInvite(token: string): Promise<{ event_id: string }>
 
   // --- Notifications ------------------------------------------------------
   listNotifications(): Promise<Notification[]>

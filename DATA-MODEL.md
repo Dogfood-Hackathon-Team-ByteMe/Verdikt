@@ -34,17 +34,30 @@ MongoDB via Mongoose. Every collection has `createdAt` / `updatedAt`.
 | `submissionsClose` | Date | The hard deadline, enforced on every project write |
 | `prizes` | [Prize] | Subdocument: `name`, `amountUsd`, `description`, `trackId` (null = overall) |
 | `customQuestions` | [Question] | Subdocument: `key`, `label`, `type`, `options`, `required` |
+| `criteria` | [Criterion] | The scoring rubric. Subdocument: `key`, `label`, `description`, `weight`, `maxScore` |
 | `minTeamSize`, `maxTeamSize` | Number | Enforced on invite accept |
 | `isFeatured` | Boolean | The event the public landing page shows |
 | `eventTags` | [String] | |
 | `isJudgeApplyOpen` | Boolean | |
 
-Prizes and custom questions are subdocuments rather than collections: neither is
-ever queried independently of its event, and this keeps "configurable prizes and
-organizer-defined questions" to a single write.
+Prizes, custom questions and rubric criteria are subdocuments rather than
+collections: none is ever queried independently of its event, and this keeps
+"configurable prizes and organizer-defined questions" to a single write.
+
+Criterion weights are **relative, not percentages** — a 3/1/1 rubric ranks
+identically to a 60/20/20 one. Each line is scaled to its own `maxScore` before
+being weighted, so a rubric can mix a 1–5 line with a 1–10 one without the
+longer scale quietly counting for more than its weight says. The weighted score
+of a ballot is `sum(score_i / maxScore_i * weight_i) / sum(weight_i)`, which
+lands in 0..1 whatever scales are in play (`backend/utils/rubric.js`).
 
 ### Track
 `topic`, `description`, `eventId`, `judges: [User]`.
+
+Judges are appointed **per track**, and appointing one writes to three places in
+a transaction: `Track.judges`, `User.judgeIn` and `Event.judgeIds`. That is why
+`isJudgeOf` has to check both the event-level and the track-level list — the two
+shapes both mean "judges this event".
 
 ### Team
 `name`, `description`, `eventId`, `members: [User]`, `projectId`,
@@ -77,13 +90,64 @@ Indexes: `{eventId, status}` and `{trackId, status}` for the gallery.
 `judgeId`, `eventId`, `projectId`, `scores: Map<String, Number>`, `comment`.
 Unique index on `{judgeId, projectId}` — one ballot per judge per project.
 
+Normalized scores are never stored: like the ranking, they are derived from
+the ballots on every read (`utils/normalization.js`).
+
+`scores` is keyed by `Event.criteria[].key`. Where the event has a rubric, the
+API refuses a ballot that names a key the rubric does not define, leaves one of
+its criteria unscored, or puts a value outside that criterion's own `0..maxScore`
+range. An event with **no** rubric accepts any map of numbers — ballots existed
+before rubrics did, and refusing the older shape would make previously-valid
+data unwritable.
+
 ### Result
 `eventId`, `teamId`, `projectId`, `trackId`, `overallPosition`, `trackPosition`,
 `details`.
 
+**Not the leaderboard.** This collection is for *published* final standings —
+hand-entered positions, for announcing winners once they are decided. The live
+ranking is computed from `Score` on every read and never stored
+(`backend/utils/standings.js`, `services/StandingsService.js`), because ballots
+keep changing until judging closes and a stored ranking would go stale
+silently — looking authoritative and being wrong.
+
+An entry's score is the **mean of its ballots'** weighted scores, not the
+weighted mean of its per-criterion averages. The two agree when every judge
+scored every criterion, which the rubric enforces; going ballot-first means a
+partially-filled legacy ballot degrades to one judge's slightly under-informed
+opinion instead of skewing a whole criterion's average. Entries with no ballots
+are returned with a `null` score and a `null` rank — unjudged, not last. Ties
+share a rank and consume the ones behind them (1, 2, 2, 4).
+
+### Assignment
+`eventId`, `judgeId`, `projectId`, `source` (`auto` / `manual` / `ballot`),
+`createdBy`. Unique index on `{judgeId, projectId}`; indexed by
+`{eventId, judgeId}` and `{eventId, projectId}`.
+
+Once an event has any assignments they **are** the judging scope: a judge can
+score exactly their assigned entries. `source: ballot` marks an entry adopted
+because the judge had already scored it before assignments existed. The rules
+for dealing them are in [JUDGING.md](JUDGING.md#2-batch-assignment).
+
+### JudgeInvite
+`eventId`, `trackId`, `email` (lower-cased), unique `token`, `createdBy`,
+`expiresAt` (14 days), `acceptedAt`, `acceptedBy`, `revokedAt`.
+
+Stricter than a team invite on purpose: bound to one address, single use (the
+claim is an atomic `findOneAndUpdate` on `acceptedAt: null`), revocable. Status
+(`pending` / `accepted` / `expired` / `revoked`) is computed on read, never
+stored, so it cannot go stale.
+
 ### Invite / JoinRequest / JudgeApplication / Notification
 `Invite`: `teamId`, unique `token`, `createdBy`, `expiresAt` (7 days).
 The other three carry a `status` of `pending` / `accepted` / `rejected`.
+
+Every road onto a judging panel -- direct appointment, an accepted
+`JudgeApplication`, an accepted `JudgeInvite` -- goes through one function
+(`TrackService.appointJudge`), which refuses anyone competing in or organising
+the event and writes `Track.judges`, `User.judgeIn` and `Event.judgeIds`
+together. Taking a judge off their last track in an event also removes them
+from `Event.judgeIds` and drops their unscored assignments.
 
 ## Denormalisation, and what it costs
 

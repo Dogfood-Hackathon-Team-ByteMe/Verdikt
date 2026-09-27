@@ -6,6 +6,8 @@ const router = express.Router();
 
 // CRUD for scores - only judges/organizers/admins
 router.post("/", authenticate, requireAuth, scoreController.create);
+// Upsert. Declared before "/:id" so "ballot" is not read as an id.
+router.put("/ballot", authenticate, requireAuth, scoreController.upsert);
 // getFiltered (not a plain getAll): it scopes the result set to what the
 // caller is allowed to see. A judge only ever gets their own ballots.
 router.get("/", authenticate, requireAuth, scoreController.getFiltered);

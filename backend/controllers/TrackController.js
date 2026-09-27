@@ -15,7 +15,7 @@ export const create = async (req, res, next) => {
 
 export const getById = async (req, res, next) => {
 	try {
-		const track = await trackService.getTrackById(req.params.id);
+		const track = await trackService.getTrackById(req.params.id, req.user);
 		res.json({
 			success: true,
 			data: track,
@@ -30,7 +30,7 @@ export const getAll = async (req, res, next) => {
 	try {
 		const filter = {};
 		if (req.query.eventId) filter.eventId = req.query.eventId;
-		const tracks = await trackService.getAllTracks(filter);
+		const tracks = await trackService.getAllTracks(filter, req.user);
 		res.json({
 			success: true,
 			data: tracks,
@@ -66,6 +66,33 @@ export const deleteById = async (req, res, next) => {
 			data: null,
 			message: "Track deleted successfully",
 		});
+	} catch (error) {
+		next(error);
+	}
+};
+
+/**
+ * Appoint a judge on a track, named by email.
+ *
+ * By email rather than by id because that is what an organiser has: they know
+ * who they asked to judge, not that person's ObjectId. The address is resolved
+ * inside TrackService, after it has checked that the caller organises this
+ * event -- doing it here would have made the endpoint an account-enumeration
+ * oracle for anyone signed in.
+ */
+export const addJudge = async (req, res, next) => {
+	try {
+		const track = await trackService.assignJudge(req.params.id, req.body.email, req.user);
+		res.json({ success: true, data: track, message: "Judge added" });
+	} catch (error) {
+		next(error);
+	}
+};
+
+export const removeJudge = async (req, res, next) => {
+	try {
+		const track = await trackService.removeJudge(req.params.id, req.params.userId, req.user);
+		res.json({ success: true, data: track, message: "Judge removed" });
 	} catch (error) {
 		next(error);
 	}

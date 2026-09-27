@@ -127,3 +127,13 @@ four suites; `npm run acceptance` writes `acceptance-report.txt`.
   for a seeded demo, not for anything real.
 - No email delivery, so invites are shareable links rather than sent messages.
 - Cross-judge normalization and the weighted rubric are T2, and are not claimed.
+
+## Judging
+
+How ballots become a ranking -- the rubric arithmetic, batch assignment, what
+each judge may see and score, cross-judge normalization and the simulation that
+measures it -- is its own document: [JUDGING.md](JUDGING.md). The short version
+of the architecture: scope rules live in one place (`services/JudgeScope.js`)
+and are applied both where ballots are written and where the judge's queue is
+read, so the page cannot offer an entry the API would refuse; and standings are
+computed from ballots on every read, never stored.

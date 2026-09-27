@@ -9,7 +9,23 @@
  * Paired with mockAuth.ts, which owns the session side.
  */
 import type { VerdiktApi } from './client'
-import type { EventDraft, HackEvent, Invite, Notification, PlatformStats, Project, ProjectDraft, ProjectQuery, Team, Track } from './types'
+import type {
+  Assignment,
+  Ballot,
+  EventDraft,
+  HackEvent,
+  Invite,
+  JudgeInvite,
+  Notification,
+  PlatformStats,
+  Project,
+  ProjectDraft,
+  ProjectQuery,
+  StandingRow,
+  Standings,
+  Team,
+  Track,
+} from './types'
 import { ApiError } from './unwrap'
 
 const EVENT_ID = 'dogfood-2026'
@@ -23,14 +39,14 @@ export const mockEvent: HackEvent = {
   // Always ~2 days out, so the countdown is live whenever someone opens this.
   submissions_close: new Date(Date.now() + 48 * 3600_000).toISOString(),
   tracks: [
-    { id: 'judging', name: 'Judging Engines' },
-    { id: 'devtools', name: 'Developer Tools' },
-    { id: 'infra', name: 'Infrastructure' },
-    { id: 'security', name: 'Security' },
-    { id: 'data', name: 'Data & ML' },
-    { id: 'civic', name: 'Civic Tech' },
-    { id: 'edu', name: 'Education' },
-    { id: 'oss', name: 'Open Source Health' },
+    { id: 'judging', name: 'Judging Engines', judges: [] },
+    { id: 'devtools', name: 'Developer Tools', judges: [] },
+    { id: 'infra', name: 'Infrastructure', judges: [] },
+    { id: 'security', name: 'Security', judges: [] },
+    { id: 'data', name: 'Data & ML', judges: [] },
+    { id: 'civic', name: 'Civic Tech', judges: [] },
+    { id: 'edu', name: 'Education', judges: [] },
+    { id: 'oss', name: 'Open Source Health', judges: [] },
   ],
   prizes: [
     { id: 'p1', name: 'Grand Prize', amount_usd: 800 },
@@ -43,6 +59,12 @@ export const mockEvent: HackEvent = {
   custom_questions: [
     { key: 'whatsHard', label: 'What was the hardest part?', type: 'longtext', required: true },
     { key: 'nextStep', label: 'What would you build next?', type: 'longtext', required: false },
+  ],
+  criteria: [
+    { key: 'impact', label: 'Impact', description: 'Does it matter to anyone outside the room?', weight: 3, max_score: 5 },
+    { key: 'craft', label: 'Craft', description: 'Is it well built and does it hold up?', weight: 2, max_score: 5 },
+    { key: 'originality', label: 'Originality', description: 'Has this been done already?', weight: 2, max_score: 5 },
+    { key: 'demo', label: 'Demo', description: 'Does the demo show the thing working?', weight: 1, max_score: 5 },
   ],
   min_team_size: 1,
   max_team_size: 4,
@@ -106,6 +128,9 @@ let teams: Team[] = projects.map((p) => ({
 
 let invites: Invite[] = []
 let notifications: Notification[] = []
+let ballots: Ballot[] = []
+let assignments: Assignment[] = []
+let judgeInvites: JudgeInvite[] = []
 let nextId = 1
 
 const delay = <T,>(value: T, ms = 180) => new Promise<T>((r) => setTimeout(() => r(value), ms))
@@ -291,6 +316,7 @@ export const mockApi: VerdiktApi = {
       starts_at: input.starts_at ?? new Date().toISOString(),
       prizes: [],
       custom_questions: [],
+      criteria: [],
       tracks: [],
     }
     return delay(created)
@@ -316,11 +342,12 @@ export const mockApi: VerdiktApi = {
       }))
     }
     if (input.custom_questions) mockEvent.custom_questions = input.custom_questions
+    if (input.criteria) mockEvent.criteria = input.criteria
     return delay(mockEvent)
   },
 
   createTrack: ({ name, description }) => {
-    const track: Track = { id: `track-${nextId++}`, name, description, event_id: EVENT_ID }
+    const track: Track = { id: `track-${nextId++}`, name, description, event_id: EVENT_ID, judges: [] }
     mockEvent.tracks = [...mockEvent.tracks, track]
     return delay(track)
   },
@@ -338,6 +365,25 @@ export const mockApi: VerdiktApi = {
     return delay(undefined)
   },
 
+  addTrackJudge: (trackId, email) => {
+    const track = mockEvent.tracks.find((t) => t.id === trackId)
+    if (!track) return Promise.reject(new ApiError('Track not found', 404))
+    if (!track.judges.some((j) => j.email === email)) {
+      track.judges = [...track.judges, { id: `judge-${nextId++}`, name: email.split('@')[0], email }]
+    }
+    // Mirrors the backend: appointing a track judge also lists them on the event.
+    mockEvent.judge_ids = [...new Set(mockEvent.tracks.flatMap((t) => t.judges.map((j) => j.id)))]
+    return delay(track)
+  },
+
+  removeTrackJudge: (trackId, userId) => {
+    const track = mockEvent.tracks.find((t) => t.id === trackId)
+    if (!track) return Promise.reject(new ApiError('Track not found', 404))
+    track.judges = track.judges.filter((j) => j.id !== userId)
+    mockEvent.judge_ids = [...new Set(mockEvent.tracks.flatMap((t) => t.judges.map((j) => j.id)))]
+    return delay(track)
+  },
+
   // No server behind the mock, so the "upload" is just a data URL.
   uploadImage: (file: File) =>
     new Promise<string>((resolve, reject) => {
@@ -346,6 +392,255 @@ export const mockApi: VerdiktApi = {
       reader.onerror = () => reject(new Error('Could not read that file'))
       reader.readAsDataURL(file)
     }),
+
+  // Judging. One in-memory ballot box, keyed by project, standing in for the
+  // unique (judge, project) index the real backend enforces.
+  listBallots: (eventId) =>
+    delay(ballots.filter((b) => !eventId || b.event_id === eventId)),
+
+  saveBallot: (draft) => {
+    const existing = ballots.find((b) => b.project_id === draft.project_id)
+    const saved: Ballot = {
+      id: existing?.id ?? `ballot-${nextId++}`,
+      judge_id: 'mock-judge',
+      judge_name: 'You',
+      project_id: draft.project_id,
+      event_id: EVENT_ID,
+      scores: draft.scores,
+      comment: draft.comment ?? '',
+      updated_at: new Date().toISOString(),
+    }
+    ballots = existing ? ballots.map((b) => (b.id === saved.id ? saved : b)) : [...ballots, saved]
+    return delay(saved)
+  },
+
+  /**
+   * The same aggregation the backend does, over the mock ballot box.
+   *
+   * Duplicated rather than imported because backend/utils/standings.js is not
+   * reachable from the browser bundle -- and the mock exists so the screens can
+   * be built with no backend at all. The rules it has to match: each criterion
+   * scaled to its own maximum before weighting, the mean taken per ballot, and
+   * an unjudged entry left null rather than zero.
+   */
+  getStandings: (eventId, method = 'normalized') => {
+    const criteria = mockEvent.criteria
+    const entries = projects.filter((p) => p.status === 'submitted')
+
+    const rows: StandingRow[] = entries.map((project) => {
+      const mine = ballots.filter((b) => b.project_id === project.id)
+
+      const perCriterion: Record<string, number | null> = {}
+      for (const c of criteria) {
+        const values = mine.map((b) => b.scores[c.key]).filter((v) => typeof v === 'number')
+        perCriterion[c.key] = values.length ? values.reduce((a, b) => a + b, 0) / values.length : null
+      }
+
+      const ballotScores = mine.map((b) => {
+        let total = 0
+        let weight = 0
+        for (const c of criteria) {
+          const value = b.scores[c.key]
+          if (typeof value !== 'number' || c.max_score <= 0) continue
+          total += (value / c.max_score) * c.weight
+          weight += c.weight
+        }
+        return weight > 0 ? total / weight : null
+      })
+      const scored = ballotScores.filter((v): v is number => v !== null)
+
+      return {
+        project_id: project.id,
+        title: project.title,
+        team_id: project.team_id,
+        team_name: project.team,
+        track_id: project.track || null,
+        track_name: project.track_name ?? mockEvent.tracks.find((t) => t.id === project.track)?.name ?? null,
+        ballot_count: mine.length,
+        assigned_count: assignments.filter((a) => a.project_id === project.id).length,
+        weighted_score: scored.length ? scored.reduce((a, b) => a + b, 0) / scored.length : null,
+        // The mock's ballot box has exactly one judge ("You"), and a lone judge
+        // has nobody to be compared with -- so normalization is genuinely the
+        // identity here, which is what the real algorithm returns too.
+        normalized_score: scored.length ? scored.reduce((a, b) => a + b, 0) / scored.length : null,
+        corrected_ballots: 0,
+        rank: null,
+        track_rank: null,
+        per_criterion: perCriterion,
+      }
+    })
+
+    // Nulls last, then best first, then by title so the order is stable.
+    const field = method === 'raw' ? 'weighted_score' : 'normalized_score'
+    const bestFirst = (a: StandingRow, b: StandingRow) => {
+      const x = a[field]
+      const y = b[field]
+      if (x === null && y === null) return a.title.localeCompare(b.title)
+      if (x === null) return 1
+      if (y === null) return -1
+      if (y !== x) return y - x
+      return a.title.localeCompare(b.title)
+    }
+
+    // Competition ranking (1, 2, 2, 4): a tie shares a rank and eats the next.
+    const rank = (list: StandingRow[]): StandingRow[] => {
+      let lastScore: number | null = null
+      let lastRank = 0
+      return list.map((row, i) => {
+        const score = row[field]
+        if (score === null) return { ...row, rank: null }
+        const r = score === lastScore ? lastRank : i + 1
+        lastScore = score
+        lastRank = r
+        return { ...row, rank: r }
+      })
+    }
+
+    const overall = rank([...rows].sort(bestFirst))
+    const trackRanks = new Map<string, number | null>()
+    for (const trackId of new Set(rows.map((r) => r.track_id))) {
+      for (const row of rank(overall.filter((r) => r.track_id === trackId).sort(bestFirst))) {
+        trackRanks.set(row.project_id, row.rank)
+      }
+    }
+
+    const standings = overall.map((row) => ({ ...row, track_rank: trackRanks.get(row.project_id) ?? null }))
+    const scoredIds = new Set(ballots.map((b) => b.project_id))
+
+    const result: Standings = {
+      event_id: eventId,
+      event_name: mockEvent.name,
+      method,
+      criteria,
+      standings,
+      normalization: { groups: ballots.length ? 1 : 0, corrected_ballots: 0, ballots: ballots.length },
+      computed_at: new Date().toISOString(),
+      progress: {
+        project_count: entries.length,
+        scored_project_count: entries.filter((p) => scoredIds.has(p.id)).length,
+        unscored_project_count: entries.filter((p) => !scoredIds.has(p.id)).length,
+        ballot_count: ballots.length,
+        assignment_count: assignments.length,
+        judges: [
+          {
+            judge_id: 'mock-judge',
+            name: 'You',
+            email: null,
+            ballot_count: ballots.length,
+            assigned_count: assignments.length,
+            assigned_done: assignments.filter((a) => a.scored).length,
+            mean_score: null,
+            spread: null,
+            corrected: false,
+            uncorrected_reason: 'no-peers',
+          },
+        ],
+      },
+    }
+    return delay(result)
+  },
+
+  getJudgeQueue: () => {
+    const submitted = projects.filter((p) => p.status === 'submitted')
+    if (assignments.length > 0) {
+      const mine = new Set(assignments.map((a) => a.project_id))
+      return delay({ mode: 'assigned' as const, projects: submitted.filter((p) => mine.has(p.id)) })
+    }
+    return delay({ mode: 'all' as const, projects: submitted })
+  },
+
+  // One judge in the mock, so a "batch" is just that judge on N=1 of each
+  // entry; enough for the organizer screens to have something to show.
+  listAssignments: () => delay(assignments),
+
+  autoAssign: (_eventId, reviewsPerProject) => {
+    const submitted = projects.filter((p) => p.status === 'submitted')
+    for (const p of submitted) {
+      if (assignments.some((a) => a.project_id === p.id)) continue
+      assignments = [
+        ...assignments,
+        {
+          id: `assignment-${nextId++}`,
+          judge_id: 'mock-judge',
+          judge_name: 'You',
+          judge_email: null,
+          project_id: p.id,
+          project_title: p.title,
+          track_name: p.track_name ?? null,
+          source: 'auto',
+          scored: ballots.some((b) => b.project_id === p.id),
+        },
+      ]
+    }
+    const short = reviewsPerProject > 1 ? submitted : []
+    return delay({
+      reviews_per_project: reviewsPerProject,
+      dealt: assignments.length,
+      adopted: 0,
+      total: assignments.length,
+      shortfall: short.map((p) => ({
+        project_id: p.id,
+        title: p.title,
+        track_name: p.track_name ?? null,
+        assigned: 1,
+        wanted: reviewsPerProject,
+        eligible_judges: 1,
+      })),
+      per_judge: [{ judge_id: 'mock-judge', name: 'You', email: null, assigned: assignments.length }],
+    })
+  },
+
+  addAssignment: () => delay(undefined),
+
+  removeAssignment: (id) => {
+    assignments = assignments.filter((a) => a.id !== id)
+    return delay(undefined)
+  },
+
+  clearAssignments: () => {
+    assignments = []
+    return delay(undefined)
+  },
+
+  listJudgeInvites: (trackId) => delay(judgeInvites.filter((i) => i.track_id === trackId)),
+
+  createJudgeInvite: (trackId, email) => {
+    const invite: JudgeInvite = {
+      id: `judge-invite-${nextId++}`,
+      track_id: trackId,
+      email,
+      token: `mock-${nextId++}`,
+      status: 'pending',
+      expires_at: new Date(Date.now() + 14 * 24 * 3600_000).toISOString(),
+      accepted_at: null,
+    }
+    judgeInvites = [invite, ...judgeInvites]
+    return delay(invite)
+  },
+
+  revokeJudgeInvite: (id) => {
+    judgeInvites = judgeInvites.map((i) => (i.id === id ? { ...i, status: 'revoked' as const } : i))
+    return delay(undefined)
+  },
+
+  getJudgeInvite: (token) => {
+    const invite = judgeInvites.find((i) => i.token === token)
+    if (!invite) return Promise.reject(new ApiError('This invite link is not valid', 404))
+    const track = mockEvent.tracks.find((t) => t.id === invite.track_id)
+    return delay({
+      event_id: EVENT_ID,
+      event_name: mockEvent.name,
+      track_name: track?.name ?? null,
+      email_hint: invite.email.replace(/^(.).*@/, '$1***@'),
+      status: invite.status,
+      expires_at: invite.expires_at,
+    })
+  },
+
+  acceptJudgeInvite: (token) => {
+    judgeInvites = judgeInvites.map((i) => (i.token === token ? { ...i, status: 'accepted' as const } : i))
+    return delay({ event_id: EVENT_ID })
+  },
 
   listNotifications: () => delay(notifications),
   markNotificationRead: (id) => {

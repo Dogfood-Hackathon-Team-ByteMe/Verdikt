@@ -22,6 +22,42 @@ const assertIsOrganiserOrAdmin = (requestingUser, eventId, action = "perform thi
 	}
 };
 
+/**
+ * What an organiser may write on their own event.
+ *
+ * `req.body` used to reach findByIdAndUpdate whole, which let an organiser set
+ * organiserId (handing their event to someone else, or taking one), judgeIds
+ * (appointing judges around the track flow) and isFeatured (pinning their own
+ * event to the public landing page). Same class of hole as BUG-8 on profiles,
+ * so it gets the same treatment: name the writable fields, ignore the rest.
+ *
+ * `tracks` is absent on purpose -- tracks are created and deleted through their
+ * own endpoints, which keep Track.eventId and Event.tracks in step.
+ */
+const EVENT_FIELDS = [
+	"name",
+	"description",
+	"tagline",
+	"startsAt",
+	"submissionsClose",
+	"prizes",
+	"customQuestions",
+	"criteria",
+	"eventTags",
+	"minTeamSize",
+	"maxTeamSize",
+	"bannerUrl",
+	"isJudgeApplyOpen",
+];
+
+const pickEventFields = (data = {}) => {
+	const out = {};
+	for (const field of EVENT_FIELDS) {
+		if (data[field] !== undefined) out[field] = data[field];
+	}
+	return out;
+};
+
 // ─── Issue #23: createEvent ──────────────────────────────────────────────────
 export const createEvent = async (data, requestingUser) => {
 	// Required fields
@@ -45,6 +81,8 @@ export const createEvent = async (data, requestingUser) => {
 	if (requestingUser && !requestingUser.isAdmin) {
 		data.organiserId = requestingUser._id;
 	}
+
+	if (data.criteria !== undefined) data.criteria = normaliseCriteria(data.criteria);
 
 	return await runInTransaction(async (session) => {
 		const event = await eventRepository.create(data, session);
@@ -89,6 +127,40 @@ export const getFeaturedEvent = async () => {
 	return all[0];
 };
 
+/**
+ * Clean a rubric coming off the organiser's form.
+ *
+ * Rows the organiser started and abandoned (no key, or no label) are dropped
+ * rather than rejected -- the form always sends its whole list, and an empty
+ * trailing row is a normal thing to leave behind. A duplicate key is refused,
+ * though, because Score.scores is keyed by it and the second line would
+ * silently overwrite the first on every ballot.
+ */
+const normaliseCriteria = (rows) => {
+	if (!Array.isArray(rows)) throw Object.assign(new Error("criteria must be a list"), { statusCode: 400 });
+
+	const cleaned = rows
+		.filter((row) => row && typeof row.key === "string" && typeof row.label === "string")
+		.map((row) => ({
+			key: row.key.trim(),
+			label: row.label.trim(),
+			description: typeof row.description === "string" ? row.description.trim() : undefined,
+			weight: Number.isFinite(Number(row.weight)) ? Math.max(0, Number(row.weight)) : 1,
+			maxScore: Number.isFinite(Number(row.maxScore)) ? Math.max(1, Number(row.maxScore)) : 5,
+		}))
+		.filter((row) => row.key && row.label);
+
+	const seen = new Set();
+	for (const row of cleaned) {
+		if (seen.has(row.key)) {
+			throw Object.assign(new Error(`Duplicate criterion key "${row.key}"`), { statusCode: 400 });
+		}
+		seen.add(row.key);
+	}
+
+	return cleaned;
+};
+
 // ─── Issue #24: updateEvent — single clean ownership check ──────────────────
 export const updateEvent = async (id, updateData, requestingUser) => {
 	const event = await eventRepository.findById(id);
@@ -97,15 +169,25 @@ export const updateEvent = async (id, updateData, requestingUser) => {
 
 	assertIsOrganiserOrAdmin(requestingUser, id, "update");
 
+	const patch = pickEventFields(updateData);
+
 	// Validate submissionsClose if being updated
-	if (updateData.submissionsClose !== undefined && updateData.submissionsClose !== null && updateData.submissionsClose !== "") {
-		const closeDate = new Date(updateData.submissionsClose);
+	if (patch.submissionsClose !== undefined && patch.submissionsClose !== null && patch.submissionsClose !== "") {
+		const closeDate = new Date(patch.submissionsClose);
 		if (isNaN(closeDate.getTime()))
 			throw Object.assign(new Error("submissionsClose must be a valid date"), { statusCode: 400 });
-		updateData.submissionsClose = closeDate;
+		patch.submissionsClose = closeDate;
 	}
 
-	return await eventRepository.update(id, updateData);
+	if (patch.criteria !== undefined) patch.criteria = normaliseCriteria(patch.criteria);
+
+	// Only an admin decides which event the landing page features; an organiser
+	// setting it on their own event is them choosing to be the front page.
+	if (requestingUser.isAdmin && updateData.isFeatured !== undefined) {
+		patch.isFeatured = updateData.isFeatured;
+	}
+
+	return await eventRepository.update(id, patch);
 };
 
 // ─── Issue #24: deleteEvent — single clean ownership check ──────────────────

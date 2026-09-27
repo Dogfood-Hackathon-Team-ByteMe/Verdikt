@@ -5,7 +5,7 @@
  * and prizes", plus the organizer-defined submission questions from the T1
  * data model. Four tabs, because they write to two different endpoints:
  *
- *   Details / Prizes / Questions -> PUT /api/events/:id
+ *   Details / Prizes / Questions / Rubric -> PUT /api/events/:id
  *   Tracks                       -> POST|PUT|DELETE /api/tracks
  *
  * Prizes and questions are whole-array replacements (the backend stores them
@@ -13,14 +13,25 @@
  * complete list. Tracks are separate documents and are edited one at a time.
  */
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
-import { api } from '../api'
-import type { CustomQuestion, HackEvent, Prize, Track } from '../api/types'
+import { Link, useParams } from 'react-router-dom'
+import { ApiError, api } from '../api'
+import type {
+  Assignment,
+  AssignmentRun,
+  Criterion,
+  CustomQuestion,
+  HackEvent,
+  JudgeInvite,
+  Prize,
+  RankingMethod,
+  StandingRow,
+  Track,
+} from '../api/types'
 import { useApi } from '../hooks/useApi'
 import { AppShell, PageHeading } from '../sections/AppShell'
-import { Alert, Badge, Button, Card, Container, Field, Icon, Segmented , ImagePicker } from '../ui'
+import { Alert, Badge, Button, Card, Container, Field, Icon, ImagePicker, Segmented, cn } from '../ui'
 
-type Tab = 'details' | 'tracks' | 'prizes' | 'questions' | 'submissions'
+type Tab = 'details' | 'tracks' | 'prizes' | 'questions' | 'rubric' | 'judges' | 'submissions' | 'results'
 
 /** An ISO instant -> the "YYYY-MM-DDTHH:mm" a datetime-local input wants. */
 const toLocalInput = (iso: string | undefined) => {
@@ -82,7 +93,10 @@ export default function EventEditor() {
               { id: 'tracks', label: `Tracks (${e.tracks.length})` },
               { id: 'prizes', label: `Prizes (${e.prizes.length})` },
               { id: 'questions', label: `Questions (${e.custom_questions.length})` },
+              { id: 'rubric', label: `Rubric (${e.criteria.length})` },
+              { id: 'judges', label: `Judges (${e.judge_ids.length})` },
               { id: 'submissions', label: 'Submissions' },
+              { id: 'results', label: 'Results' },
             ]}
           />
         </div>
@@ -92,7 +106,10 @@ export default function EventEditor() {
           {tab === 'tracks' && <TracksTab event={e} onChanged={event.reload} />}
           {tab === 'prizes' && <PrizesTab event={e} onSaved={event.reload} />}
           {tab === 'questions' && <QuestionsTab event={e} onSaved={event.reload} />}
+          {tab === 'rubric' && <RubricTab event={e} onSaved={event.reload} />}
+          {tab === 'judges' && <JudgesTab event={e} onChanged={event.reload} />}
           {tab === 'submissions' && <SubmissionsTab event={e} />}
+          {tab === 'results' && <ResultsTab event={e} />}
         </div>
 
         <Button href="/organizer" variant="outline" className="mt-12">
@@ -557,6 +574,974 @@ function QuestionsTab({ event, onSaved }: { event: HackEvent; onSaved: () => voi
   )
 }
 
+// --- Rubric ----------------------------------------------------------------
+
+/**
+ * The scoring rubric judges fill in.
+ *
+ * Weights are relative rather than percentages, so the form never has to nag
+ * about summing to 100 -- it just shows each line's share of the running total,
+ * which is the number that actually decides the ranking. Changing a key after
+ * judging opens orphans every ballot cast against the old one, so the key field
+ * says so and locks itself once the rubric has been saved with scores against
+ * it... which the editor cannot know, so it warns rather than locks.
+ */
+function RubricTab({ event, onSaved }: { event: HackEvent; onSaved: () => void }) {
+  const [rows, setRows] = useState<Criterion[]>(event.criteria)
+  const clean = rows.filter((c) => c.key.trim() && c.label.trim())
+  const { busy, error, saved, run } = useSaver(() => api.updateEvent(event.id, { criteria: clean }), onSaved)
+
+  const set = (i: number, patch: Partial<Criterion>) =>
+    setRows((r) => r.map((row, idx) => (idx === i ? { ...row, ...patch } : row)))
+
+  const totalWeight = clean.reduce((sum, c) => sum + (c.weight || 0), 0)
+  const duplicate = clean.find((c, i) => clean.findIndex((o) => o.key === c.key) !== i)
+
+  return (
+    <Card tone="paper" className="p-6 sm:p-7">
+      <h2 className="headline text-[1.25rem]">Scoring rubric</h2>
+      <p className="mt-2 font-mono text-[0.8rem] text-muted">
+        What judges score each entry on. Weights are relative, not percentages &mdash; 3/1/1 ranks exactly the same
+        as 60/20/20, so use whichever reads better. Each line is scaled to its own maximum before it is weighted.
+      </p>
+
+      {error && <Alert className="mt-5">{error}</Alert>}
+      {duplicate && (
+        <Alert className="mt-5">
+          Two lines share the key &ldquo;{duplicate.key}&rdquo;. Keys are what ballots are stored under, so they have
+          to be unique.
+        </Alert>
+      )}
+
+      <ul className="mt-6 flex flex-col gap-4">
+        {rows.map((c, i) => {
+          const share = totalWeight > 0 ? Math.round(((c.weight || 0) / totalWeight) * 100) : 0
+          return (
+            <li key={i} className="rounded-card bg-fog p-4">
+              <div className="grid gap-3 sm:grid-cols-[1fr_1fr] sm:items-start">
+                <Field
+                  label="Criterion"
+                  placeholder="Impact"
+                  value={c.label}
+                  onChange={(e) => set(i, { label: e.target.value })}
+                />
+                <Field
+                  label="Key"
+                  hint="Stable id. Changing it orphans ballots already cast."
+                  placeholder="impact"
+                  value={c.key}
+                  onChange={(e) => set(i, { key: e.target.value.replace(/\s+/g, '') })}
+                />
+              </div>
+
+              <div className="mt-3">
+                <Field
+                  label="Note for judges"
+                  hint="Optional. Shown under the criterion on the ballot."
+                  placeholder="Does it matter to anyone outside the room?"
+                  value={c.description ?? ''}
+                  onChange={(e) => set(i, { description: e.target.value })}
+                />
+              </div>
+
+              <div className="mt-3 grid gap-3 sm:grid-cols-[140px_140px_1fr] sm:items-end">
+                <Field
+                  label="Weight"
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={String(c.weight)}
+                  onChange={(e) => set(i, { weight: Math.max(0, Number(e.target.value) || 0) })}
+                />
+                <Field
+                  label="Out of"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={String(c.max_score)}
+                  onChange={(e) => set(i, { max_score: Math.max(1, Number(e.target.value) || 1) })}
+                />
+                <div className="flex items-center justify-between gap-3 pb-1">
+                  <span className="font-mono text-[0.78rem] text-subtle">
+                    {share}% of the final score
+                  </span>
+                  <Button size="sm" variant="ghost" onClick={() => setRows((r) => r.filter((_, idx) => idx !== i))}>
+                    Remove
+                  </Button>
+                </div>
+              </div>
+            </li>
+          )
+        })}
+      </ul>
+
+      {rows.length === 0 && (
+        <p className="mt-6 rounded-card bg-fog p-5 text-center font-mono text-[0.85rem] text-muted">
+          No rubric yet. Judges cannot score this event until there is one.
+        </p>
+      )}
+
+      <div className="mt-6 flex flex-wrap items-center gap-3">
+        <Button
+          variant="outline"
+          icon="plus"
+          onClick={() => setRows((r) => [...r, { key: '', label: '', weight: 1, max_score: 5 }])}
+        >
+          Add criterion
+        </Button>
+        <Button disabled={busy || Boolean(duplicate)} onClick={() => void run()}>
+          {busy ? 'Saving...' : saved ? 'Saved' : 'Save rubric'}
+        </Button>
+        {clean.length > 0 && (
+          <span className="font-mono text-[0.75rem] text-subtle">
+            {clean.length} criteri{clean.length === 1 ? 'on' : 'a'} &middot; total weight {totalWeight}
+          </span>
+        )}
+      </div>
+    </Card>
+  )
+}
+
+// --- Judges ----------------------------------------------------------------
+
+/**
+ * Who judges what, and which entries each judge reviews.
+ *
+ * Judges are appointed per TRACK, because that is the shape a real panel has --
+ * someone judges the security entries, not all ninety -- and the server keeps
+ * a track judge out of other tracks. Below the tracks, batch assignment deals
+ * the entries out so every one gets the same number of independent reviews.
+ *
+ * Tracks come from /api/tracks rather than off the event: GET /api/events
+ * populates `tracks` but not the judges nested inside each one, so reading
+ * event.tracks here would list every judge as a blank row.
+ */
+function JudgesTab({ event, onChanged }: { event: HackEvent; onChanged: () => void }) {
+  const tracks = useApi(() => api.listTracks(event.id), [event.id])
+  const rows = tracks.data ?? []
+  // Bumped whenever the panel changes, so the assignments panel refetches.
+  const [panelVersion, setPanelVersion] = useState(0)
+
+  const reload = () => {
+    tracks.reload()
+    setPanelVersion((v) => v + 1)
+    onChanged()
+  }
+
+  if (tracks.loading && !tracks.data) {
+    return (
+      <Card tone="paper" className="p-6">
+        <p className="label-mono text-subtle" role="status">Loading the panel</p>
+      </Card>
+    )
+  }
+
+  if (rows.length === 0) {
+    return (
+      <Card tone="paper" className="p-6 sm:p-7">
+        <h2 className="headline text-[1.25rem]">Judges</h2>
+        <p className="mt-2 font-mono text-[0.85rem] text-muted">
+          Judges are appointed on a track, so add a track first and they can be assigned to it.
+        </p>
+      </Card>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-5">
+      <Card tone="paper" className="p-6 sm:p-7">
+        <h2 className="headline text-[1.25rem]">Judges</h2>
+        <p className="mt-2 font-mono text-[0.8rem] text-muted">
+          Appointed per track. Add someone who already has an account by their email, or send an invite link to
+          anyone &mdash; it only works for the address you send it to. A judge scores only their own tracks, and
+          nobody on a team here can be appointed.
+        </p>
+      </Card>
+
+      {rows.map((track) => (
+        <TrackJudges key={track.id} track={track} onChanged={reload} />
+      ))}
+
+      <AssignmentsPanel event={event} panelVersion={panelVersion} />
+    </div>
+  )
+}
+
+function TrackJudges({ track, onChanged }: { track: Track; onChanged: () => void }) {
+  const [email, setEmail] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [noAccount, setNoAccount] = useState(false)
+  // Local copy so a row disappears the moment it is removed, rather than after
+  // the parent has refetched every track.
+  const [judges, setJudges] = useState(track.judges)
+  const invites = useApi(() => api.listJudgeInvites(track.id), [track.id])
+  const [fresh, setFresh] = useState<string | null>(null)
+
+  useEffect(() => setJudges(track.judges), [track.judges])
+
+  const run = async (work: () => Promise<Track>) => {
+    setBusy(true)
+    setError(null)
+    setNoAccount(false)
+    try {
+      setJudges((await work()).judges)
+      onChanged()
+      return true
+    } catch (e) {
+      // Verbatim: "they are competing in this event" is the server's call and
+      // the organizer needs the actual reason, not a generic failure.
+      setError(e instanceof Error ? e.message : 'Could not update the judges.')
+      setNoAccount(e instanceof ApiError && e.status === 404)
+      return false
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const add = async () => {
+    const value = email.trim()
+    if (!value) return
+    if (await run(() => api.addTrackJudge(track.id, value))) setEmail('')
+  }
+
+  const invite = async () => {
+    const value = email.trim()
+    if (!value) return
+    setBusy(true)
+    setError(null)
+    setNoAccount(false)
+    try {
+      const made = await api.createJudgeInvite(track.id, value)
+      setFresh(made.id)
+      setEmail('')
+      invites.reload()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not create the invite.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const revoke = async (id: string) => {
+    setBusy(true)
+    setError(null)
+    try {
+      await api.revokeJudgeInvite(id)
+      invites.reload()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not withdraw the invite.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const list = invites.data ?? []
+  const open = list.filter((i) => i.status === 'pending')
+  const closed = list.filter((i) => i.status !== 'pending')
+
+  return (
+    <Card tone="paper" className="p-6">
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <h3 className="headline text-[1.1rem]">{track.name}</h3>
+        <span className="label-mono text-subtle">
+          {judges.length} judge{judges.length === 1 ? '' : 's'}
+          {open.length > 0 && ` · ${open.length} invited`}
+        </span>
+      </div>
+
+      {error && (
+        <Alert className="mt-4">
+          {error}
+          {noAccount && ' Send them an invite link instead — it works before they sign up.'}
+        </Alert>
+      )}
+
+      {judges.length > 0 && (
+        <ul className="mt-4 flex flex-col divide-y divide-line">
+          {judges.map((j) => (
+            <li key={j.id} className="flex items-center justify-between gap-3 py-2.5">
+              <div className="min-w-0 font-mono text-[0.82rem]">
+                <span className="font-bold">{j.name || j.email}</span>
+                {j.name && j.email && <span className="text-subtle"> &middot; {j.email}</span>}
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={busy}
+                onClick={() => void run(() => api.removeTrackJudge(track.id, j.id))}
+              >
+                Remove
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <form
+        className="mt-4 flex flex-wrap items-end gap-3 border-t border-line pt-4"
+        onSubmit={(e) => {
+          e.preventDefault()
+          void add()
+        }}
+      >
+        {/* No hint on the Field itself: the row is bottom-aligned, and a hint
+            line under the input pushed the buttons below the box they act on.
+            The explanation sits under the whole row instead. */}
+        <Field
+          label="Add a judge"
+          type="email"
+          placeholder="judge@example.com"
+          value={email}
+          disabled={busy}
+          onChange={(e) => setEmail(e.target.value)}
+          className="min-w-[240px] flex-1"
+        />
+        <div className="flex gap-2">
+          <Button type="submit" variant="outline" icon="plus" disabled={busy || !email.trim()}>
+            {busy ? 'Working...' : 'Add'}
+          </Button>
+          <Button variant="ghost" disabled={busy || !email.trim()} onClick={() => void invite()}>
+            Invite by link
+          </Button>
+        </div>
+        <p className="w-full font-mono text-[0.72rem] text-subtle">
+          Add appoints an existing account now. Invite by link works for anyone, even before they sign up.
+        </p>
+      </form>
+
+      {open.length > 0 && (
+        <ul className="mt-4 flex flex-col gap-2">
+          {open.map((inv) => (
+            <InviteRow key={inv.id} invite={inv} highlight={inv.id === fresh} busy={busy} onRevoke={() => void revoke(inv.id)} />
+          ))}
+        </ul>
+      )}
+
+      {closed.length > 0 && (
+        <details className="mt-3">
+          <summary className="cursor-pointer font-mono text-[0.72rem] text-subtle">
+            {closed.length} past invite{closed.length === 1 ? '' : 's'}
+          </summary>
+          <ul className="mt-2 flex flex-col divide-y divide-line">
+            {closed.map((inv) => (
+              <li key={inv.id} className="flex items-center justify-between gap-3 py-2 font-mono text-[0.76rem]">
+                <span className="truncate text-muted">{inv.email}</span>
+                <Badge variant={inv.status === 'accepted' ? 'green' : 'outline'}>{inv.status}</Badge>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </Card>
+  )
+}
+
+/** One open invite: who it is for, the link to send them, and a way to withdraw it. */
+function InviteRow({
+  invite,
+  highlight,
+  busy,
+  onRevoke,
+}: {
+  invite: JudgeInvite
+  highlight: boolean
+  busy: boolean
+  onRevoke: () => void
+}) {
+  const [copied, setCopied] = useState(false)
+  const url = `${window.location.origin}/judge-invite/${invite.token}`
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1800)
+    } catch {
+      // Clipboard can be refused (insecure origin, permissions). The link is on
+      // screen and selectable either way.
+      setCopied(false)
+    }
+  }
+
+  return (
+    <li className={cn('rounded-card bg-fog p-3', highlight && 'ring-2 ring-yellow')}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0 font-mono text-[0.78rem]">
+          <span className="font-bold">{invite.email}</span>
+          {invite.expires_at && (
+            <span className="text-subtle"> &middot; expires {new Date(invite.expires_at).toLocaleDateString()}</span>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => void copy()}>
+            {copied ? 'Copied' : 'Copy link'}
+          </Button>
+          <Button size="sm" variant="ghost" disabled={busy} onClick={onRevoke}>
+            Withdraw
+          </Button>
+        </div>
+      </div>
+      <input
+        readOnly
+        value={url}
+        aria-label={`Invite link for ${invite.email}`}
+        onFocus={(e) => e.currentTarget.select()}
+        className="mt-2 w-full rounded-btn bg-paper px-3 py-2 font-mono text-[0.72rem] text-muted outline-none ring-1 ring-line"
+      />
+    </li>
+  )
+}
+
+/**
+ * Batch assignment: deal N independent reviews of every submitted entry across
+ * the panel. Re-running tops up rather than starting over, so it is safe to run
+ * again after late entries or new judges.
+ */
+function AssignmentsPanel({ event, panelVersion }: { event: HackEvent; panelVersion: number }) {
+  const assignments = useApi(() => api.listAssignments(event.id), [event.id, panelVersion])
+  const [reviews, setReviews] = useState(3)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [runResult, setRunResult] = useState<AssignmentRun | null>(null)
+  const [confirmClear, setConfirmClear] = useState(false)
+
+  const list = assignments.data ?? []
+  const scored = list.filter((a) => a.scored).length
+
+  const byJudge = new Map<string, { name: string; items: Assignment[] }>()
+  for (const a of list) {
+    const key = a.judge_id
+    if (!byJudge.has(key)) byJudge.set(key, { name: a.judge_name || a.judge_email || 'Judge', items: [] })
+    byJudge.get(key)!.items.push(a)
+  }
+
+  const work = async (fn: () => Promise<void>) => {
+    setBusy(true)
+    setError(null)
+    try {
+      await fn()
+      assignments.reload()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not update the assignments.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const deal = () =>
+    work(async () => {
+      setRunResult(await api.autoAssign(event.id, reviews))
+    })
+
+  const clear = () => {
+    if (!confirmClear) {
+      setConfirmClear(true)
+      setTimeout(() => setConfirmClear(false), 4000)
+      return
+    }
+    setConfirmClear(false)
+    void work(async () => {
+      await api.clearAssignments(event.id)
+      setRunResult(null)
+    })
+  }
+
+  return (
+    <Card tone="paper" className="p-6 sm:p-7">
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <h2 className="headline text-[1.25rem]">Assignments</h2>
+        {list.length > 0 && (
+          <span className="label-mono text-subtle">
+            {scored}/{list.length} reviews in
+          </span>
+        )}
+      </div>
+      <p className="mt-2 font-mono text-[0.8rem] text-muted">
+        Deal every submitted entry to a number of judges from its own track, spreading the load evenly. Once
+        assignments exist, each judge sees and scores only their batch. Entries a judge already scored are kept in
+        their batch, and if a track has too few judges the gap is reported rather than filled from another track.
+      </p>
+
+      {error && <Alert className="mt-4">{error}</Alert>}
+
+      <div className="mt-5 flex flex-wrap items-end gap-3">
+        <Field
+          label="Reviews per entry"
+          type="number"
+          min={1}
+          max={10}
+          step={1}
+          value={String(reviews)}
+          disabled={busy}
+          onChange={(e) => setReviews(Math.max(1, Math.min(10, Math.round(Number(e.target.value) || 1))))}
+          className="w-44"
+        />
+        <Button disabled={busy} onClick={() => void deal()}>
+          {busy ? 'Working...' : list.length > 0 ? 'Top up assignments' : 'Deal assignments'}
+        </Button>
+        {list.length > 0 && (
+          <Button variant="ghost" disabled={busy} onClick={clear}>
+            {confirmClear ? 'Click again to clear all' : 'Clear all'}
+          </Button>
+        )}
+      </div>
+
+      {runResult && (
+        <div className="mt-5 rounded-card bg-fog p-4 font-mono text-[0.78rem]">
+          <div>
+            Dealt {runResult.dealt} new review{runResult.dealt === 1 ? '' : 's'}
+            {runResult.adopted > 0 && `, kept ${runResult.adopted} already scored`} &middot; {runResult.total} in total
+            at {runResult.reviews_per_project} per entry.
+          </div>
+          {runResult.shortfall.length > 0 && (
+            <div className="mt-3">
+              <div className="font-bold text-red">
+                {runResult.shortfall.length} {runResult.shortfall.length === 1 ? 'entry is' : 'entries are'} short
+              </div>
+              <ul className="mt-1 flex flex-col gap-0.5 text-muted">
+                {runResult.shortfall.slice(0, 8).map((s) => (
+                  <li key={s.project_id}>
+                    {s.title} ({s.track_name ?? 'no track'}): {s.assigned}/{s.wanted} &mdash; the track has{' '}
+                    {s.eligible_judges} judge{s.eligible_judges === 1 ? '' : 's'}
+                  </li>
+                ))}
+                {runResult.shortfall.length > 8 && <li>and {runResult.shortfall.length - 8} more</li>}
+              </ul>
+              <div className="mt-1 text-subtle">Appoint more judges to those tracks, then top up.</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {assignments.loading && !assignments.data ? (
+        <p className="mt-5 label-mono text-subtle" role="status">Loading assignments</p>
+      ) : list.length === 0 ? (
+        <p className="mt-5 rounded-card bg-fog p-4 text-center font-mono text-[0.82rem] text-muted">
+          No assignments yet. Until there are, judges score every entry in their own tracks.
+        </p>
+      ) : (
+        <ul className="mt-5 flex flex-col divide-y divide-line">
+          {[...byJudge.entries()].map(([judgeId, group]) => {
+            const done = group.items.filter((a) => a.scored).length
+            return (
+              <li key={judgeId} className="py-3">
+                <details>
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+                    <span className="font-mono text-[0.84rem] font-bold">{group.name}</span>
+                    <span className="flex items-center gap-3">
+                      <span className="h-1.5 w-24 overflow-hidden rounded-full bg-fog">
+                        <span
+                          className="block h-full rounded-full bg-yellow"
+                          style={{ width: `${(done / group.items.length) * 100}%` }}
+                        />
+                      </span>
+                      <span className="tnum font-mono text-[0.76rem] text-subtle">
+                        {done}/{group.items.length}
+                      </span>
+                    </span>
+                  </summary>
+                  <ul className="mt-2 flex flex-col gap-1 pl-2">
+                    {group.items.map((a) => (
+                      <li key={a.id} className="flex items-center justify-between gap-3 font-mono text-[0.76rem]">
+                        <span className="min-w-0 truncate">
+                          {a.project_title}
+                          <span className="text-subtle"> &middot; {a.track_name ?? 'no track'}</span>
+                        </span>
+                        <span className="flex shrink-0 items-center gap-2">
+                          {a.scored ? <Badge variant="green">scored</Badge> : <Badge variant="outline">to do</Badge>}
+                          {!a.scored && (
+                            <Button size="sm" variant="ghost" disabled={busy} onClick={() => void work(() => api.removeAssignment(a.id))}>
+                              Unassign
+                            </Button>
+                          )}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+
+      {list.length > 0 && (
+        <Button href={`/api/events/${event.id}/assignments.csv`} size="sm" variant="outline" icon="arrowUpRight" className="mt-5">
+          Download assignments CSV
+        </Button>
+      )}
+    </Card>
+  )
+}
+
+// --- Results ---------------------------------------------------------------
+
+/** How often the dashboard refetches while it is open and visible. */
+const LIVE_EVERY_MS = 10_000
+
+/** A 0..1 score as a percentage to one decimal, or a dash. */
+const pctText = (value: number | null) => (value === null ? '—' : `${(value * 100).toFixed(1)}%`)
+
+/**
+ * The live leaderboard, plus how far judging has actually got.
+ *
+ * Computed server-side on every read and refetched every few seconds while the
+ * tab is open, so it tracks ballots as they land. Two scores are always shown:
+ * raw, and after cross-judge normalization. The organizer picks which one ranks,
+ * but never loses sight of the other -- the correction is there to be checked,
+ * not taken on trust.
+ */
+function ResultsTab({ event }: { event: HackEvent }) {
+  const [method, setMethod] = useState<RankingMethod>('normalized')
+  const [groupByTrack, setGroupByTrack] = useState(false)
+  const [live, setLive] = useState(true)
+  const standings = useApi(() => api.getStandings(event.id, method), [event.id, method])
+  const { reload } = standings
+
+  // Live: refetch on a timer, but only while someone can see it. A background
+  // tab polling forever is load for nobody.
+  useEffect(() => {
+    if (!live) return
+    const tick = () => {
+      if (document.visibilityState === 'visible') reload()
+    }
+    const id = window.setInterval(tick, LIVE_EVERY_MS)
+    document.addEventListener('visibilitychange', tick)
+    return () => {
+      window.clearInterval(id)
+      document.removeEventListener('visibilitychange', tick)
+    }
+  }, [live, reload])
+
+  // A one-second clock for the "updated Ns ago" line.
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(id)
+  }, [])
+
+  if (standings.loading && !standings.data) {
+    return (
+      <Card tone="paper" className="p-6">
+        <p className="label-mono text-subtle" role="status">Computing the standings</p>
+      </Card>
+    )
+  }
+
+  if (standings.error && !standings.data) {
+    return (
+      <Card tone="paper" className="p-6">
+        <Alert>{standings.error.message}</Alert>
+      </Card>
+    )
+  }
+
+  const data = standings.data
+  if (!data) return null
+
+  const { criteria, progress, normalization } = data
+  const rows = data.standings
+
+  if (criteria.length === 0) {
+    return (
+      <Card tone="paper" className="p-6 sm:p-7">
+        <h2 className="headline text-[1.25rem]">No rubric yet</h2>
+        <p className="mt-2 font-mono text-[0.85rem] text-muted">
+          There is nothing to rank by until the rubric is set. Add criteria on the Rubric tab and judges can start
+          scoring.
+        </p>
+      </Card>
+    )
+  }
+
+  const age = Math.max(0, Math.round((now - new Date(data.computed_at).getTime()) / 1000))
+  const batched = progress.assignment_count > 0
+  const reviewsDone = progress.judges.reduce((n, j) => n + j.assigned_done, 0)
+
+  // The panel's average habit, so each judge can be described relative to it.
+  const means = progress.judges.map((j) => j.mean_score).filter((m): m is number => m !== null)
+  const panelMean = means.length ? means.reduce((a, b) => a + b, 0) / means.length : null
+
+  const groups = groupByTrack
+    ? [
+        ...event.tracks.map((t) => ({ id: t.id, name: t.name, rows: rows.filter((r) => r.track_id === t.id) })),
+        { id: 'none', name: 'No track', rows: rows.filter((r) => !r.track_id) },
+      ].filter((g) => g.rows.length > 0)
+    : [{ id: 'all', name: '', rows }]
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="grid gap-4 sm:grid-cols-4">
+        <Stat label="Entries" value={progress.project_count} />
+        <Stat label="Scored" value={progress.scored_project_count} />
+        <Stat label="Not scored" value={progress.unscored_project_count} />
+        <Stat label={batched ? 'Reviews done' : 'Ballots'} value={batched ? reviewsDone : progress.ballot_count} />
+      </div>
+
+      {batched && (
+        <p className="-mt-2 font-mono text-[0.75rem] text-subtle">
+          {reviewsDone} of {progress.assignment_count} assigned reviews are in.
+        </p>
+      )}
+
+      {progress.unscored_project_count > 0 && (
+        <Alert tone="info">
+          {progress.unscored_project_count} {progress.unscored_project_count === 1 ? 'entry has' : 'entries have'} no
+          ballots yet. They are listed at the bottom, unranked &mdash; an unjudged entry is not a last-placed one.
+        </Alert>
+      )}
+
+      {method === 'normalized' && normalization.groups > 1 && (
+        <Alert tone="info">
+          Your judges fall into {normalization.groups} groups that never scored a common entry, so each group&apos;s
+          habits are corrected against its own members only. Differences <em>between</em> those groups cannot be
+          measured from the ballots and are left as they are. See JUDGING.md.
+        </Alert>
+      )}
+
+      <Card tone="paper" className="p-6 sm:p-7">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="headline text-[1.25rem]">Standings</h2>
+          <div className="flex flex-wrap items-center gap-3">
+            <Segmented<RankingMethod>
+              label="Rank by"
+              value={method}
+              onChange={setMethod}
+              options={[
+                { id: 'normalized', label: 'Normalized' },
+                { id: 'raw', label: 'Raw' },
+              ]}
+            />
+            <Segmented<'overall' | 'track'>
+              label="Group standings"
+              value={groupByTrack ? 'track' : 'overall'}
+              onChange={(v) => setGroupByTrack(v === 'track')}
+              options={[
+                { id: 'overall', label: 'Overall' },
+                { id: 'track', label: 'By track' },
+              ]}
+            />
+          </div>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <p className="max-w-3xl font-mono text-[0.78rem] text-muted">
+            {method === 'normalized'
+              ? 'Ranked after correcting for each judge’s habits, so a harsh judge and a generous one count the same. The raw score is shown alongside.'
+              : 'Ranked by the plain mean of each entry’s ballots, uncorrected. Normalized is shown alongside.'}{' '}
+            Each criterion is scaled to its own maximum before weighting. Tied entries share a rank.
+          </p>
+          <div className="flex items-center gap-3">
+            <span className="font-mono text-[0.72rem] text-subtle" aria-live="polite">
+              {live ? <span className="mr-1.5 inline-block h-1.5 w-1.5 animate-pulse-dot rounded-full bg-green align-middle" /> : null}
+              Updated {age < 2 ? 'just now' : `${age}s ago`}
+            </span>
+            <Button size="sm" variant="ghost" onClick={() => setLive((v) => !v)}>
+              {live ? 'Pause live' : 'Go live'}
+            </Button>
+            <Button size="sm" variant="outline" onClick={reload}>
+              Refresh
+            </Button>
+          </div>
+        </div>
+
+        {rows.length === 0 ? (
+          <p className="mt-6 rounded-card bg-fog p-5 text-center font-mono text-[0.85rem] text-muted">
+            Nothing has been submitted yet.
+          </p>
+        ) : (
+          groups.map((group) => (
+            <div key={group.id} className="mt-6">
+              {group.name && <div className="label-mono mb-2 text-red">{group.name}</div>}
+              <StandingsTable
+                rows={group.rows}
+                criteria={criteria}
+                rankField={groupByTrack ? 'track_rank' : 'rank'}
+                method={method}
+                batched={batched}
+              />
+            </div>
+          ))
+        )}
+
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Button
+            href={`/api/events/${event.id}/standings.csv?method=${method}`}
+            size="sm"
+            variant="outline"
+            icon="arrowUpRight"
+          >
+            Download standings CSV
+          </Button>
+          <Button href={`/api/export.csv?eventId=${event.id}`} size="sm" variant="ghost" icon="arrowUpRight">
+            Every ballot (CSV)
+          </Button>
+        </div>
+        <p className="mt-3 font-mono text-[0.72rem] text-subtle">
+          Standings: one row per entry, ranked as shown, with both scores and each criterion average. Every ballot:
+          one row per ballot per criterion, each with its raw and normalized score.
+        </p>
+      </Card>
+
+      <Card tone="paper" className="p-6 sm:p-7">
+        <h2 className="headline text-[1.25rem]">The panel</h2>
+        <p className="mt-2 font-mono text-[0.8rem] text-muted">
+          Each judge&apos;s average score is what normalization corrects for: a judge who scores everything high
+          counts the same as one who scores everything low. A judge with only one ballot, or who shares no entry
+          with any other judge, cannot be compared and is left as scored.
+        </p>
+
+        {progress.judges.length === 0 ? (
+          <p className="mt-5 rounded-card bg-fog p-4 text-center font-mono text-[0.82rem] text-muted">
+            No judges appointed yet.
+          </p>
+        ) : (
+          <ul className="mt-5 flex flex-col divide-y divide-line">
+            {progress.judges.map((judge) => {
+              const total = batched ? judge.assigned_count : progress.project_count
+              const done = batched ? judge.assigned_done : judge.ballot_count
+              const lean =
+                judge.mean_score === null || panelMean === null
+                  ? null
+                  : judge.mean_score - panelMean > 0.05
+                    ? 'scores high'
+                    : panelMean - judge.mean_score > 0.05
+                      ? 'scores low'
+                      : 'middle of the panel'
+              return (
+                <li key={judge.judge_id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                  <div className="min-w-0 font-mono text-[0.82rem]">
+                    <span className="font-bold">{judge.name || judge.email || 'Judge'}</span>
+                    {judge.name && judge.email && <span className="text-subtle"> &middot; {judge.email}</span>}
+                    <div className="mt-0.5 text-[0.72rem] text-subtle">
+                      {judge.mean_score === null ? (
+                        'No ballots yet'
+                      ) : (
+                        <>
+                          Averages {pctText(judge.mean_score)}
+                          {lean && <> &middot; {lean}</>}
+                          {' · '}
+                          {judge.corrected
+                            ? 'corrected'
+                            : judge.uncorrected_reason === 'too-few-ballots'
+                              ? 'not corrected: one ballot is not enough to tell'
+                              : 'not corrected: shares no entry with another judge'}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <div className="h-1.5 w-24 overflow-hidden rounded-full bg-fog">
+                      <div
+                        className="h-full rounded-full bg-yellow"
+                        style={{ width: total ? `${Math.min(100, (done / total) * 100)}%` : '0%' }}
+                      />
+                    </div>
+                    <span className="tnum font-mono text-[0.78rem] text-subtle">
+                      {done}/{total}
+                    </span>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </Card>
+    </div>
+  )
+}
+
+/** The table itself. Scrolls sideways rather than squeezing the criteria out. */
+function StandingsTable({
+  rows,
+  criteria,
+  rankField,
+  method,
+  batched,
+}: {
+  rows: StandingRow[]
+  criteria: Criterion[]
+  rankField: 'rank' | 'track_rank'
+  method: RankingMethod
+  batched: boolean
+}) {
+  const DASH = '—'
+  const ranked = (col: RankingMethod) => (col === method ? 'font-bold text-ink' : 'font-normal text-muted')
+  return (
+    <div className="-mx-2 overflow-x-auto px-2">
+      <table className="w-full min-w-[720px] border-collapse">
+        <thead>
+          <tr className="border-b-2 border-ink text-left">
+            <th className="label-mono w-12 pb-2 text-subtle">#</th>
+            <th className="label-mono pb-2 text-subtle">Entry</th>
+            <th className="label-mono pb-2 text-subtle">Track</th>
+            <th className="label-mono whitespace-nowrap px-3 pb-2 text-right text-subtle">
+              {batched ? 'Reviews' : 'Ballots'}
+            </th>
+            {/* nowrap + padding, not a fixed width: a long criterion name in a
+                narrow cell wrapped onto itself and ran into the next heading. */}
+            {criteria.map((c) => (
+              <th
+                key={c.key}
+                className="label-mono whitespace-nowrap px-3 pb-2 text-right text-subtle"
+                title={`${c.label}, out of ${c.max_score}, weight ${c.weight}`}
+              >
+                {c.label}
+              </th>
+            ))}
+            <th className="label-mono whitespace-nowrap px-3 pb-2 text-right text-subtle">Raw</th>
+            <th
+              className="label-mono whitespace-nowrap pb-2 pl-3 text-right text-subtle"
+              title="After cross-judge normalization. Not clamped: a strong entry seen by a harsh judge can land a little past 100%."
+            >
+              Normalized
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => {
+            const score = method === 'raw' ? row.weighted_score : row.normalized_score
+            const unjudged = score === null
+            const rank = row[rankField]
+            return (
+              <tr key={row.project_id} className={cn('border-b border-line', unjudged && 'opacity-55')}>
+                <td className="tnum py-3 font-mono text-[0.9rem] font-bold">{rank ?? DASH}</td>
+                <td className="py-3 pr-3">
+                  <Link to={`/projects/${row.project_id}`} className="font-mono text-[0.86rem] font-bold hover:text-blue">
+                    {row.title}
+                  </Link>
+                  {row.team_name && (
+                    <div className="truncate font-mono text-[0.72rem] text-subtle">{row.team_name}</div>
+                  )}
+                </td>
+                <td className="py-3 pr-3 font-mono text-[0.76rem] text-subtle">{row.track_name ?? DASH}</td>
+                <td className="tnum whitespace-nowrap px-3 py-3 text-right font-mono text-[0.8rem] text-subtle">
+                  {batched ? `${row.ballot_count}/${row.assigned_count}` : row.ballot_count}
+                </td>
+                {criteria.map((c) => {
+                  const value = row.per_criterion[c.key]
+                  return (
+                    <td key={c.key} className="tnum px-3 py-3 text-right font-mono text-[0.8rem] text-muted">
+                      {typeof value === 'number' ? value.toFixed(1) : DASH}
+                    </td>
+                  )
+                })}
+                <td className={cn('tnum whitespace-nowrap px-3 py-3 text-right font-mono text-[0.86rem]', ranked('raw'))}>
+                  {row.weighted_score === null ? <span className="font-normal text-subtle">not scored</span> : pctText(row.weighted_score)}
+                </td>
+                <td className={cn('tnum whitespace-nowrap py-3 pl-3 text-right font-mono text-[0.86rem]', ranked('normalized'))}>
+                  {row.normalized_score === null ? <span className="font-normal text-subtle">not scored</span> : pctText(row.normalized_score)}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 // --- Submissions overview --------------------------------------------------
 
 function SubmissionsTab({ event }: { event: HackEvent }) {
@@ -610,8 +1595,19 @@ function SubmissionsTab({ event }: { event: HackEvent }) {
           Export
         </div>
         <p className="mt-3 font-mono text-[0.78rem] leading-relaxed text-slab-fg/70">
-          Scores export as CSV once judging starts. Organizers only.
+          A CSV for each stage. Entries: every submission, drafts included, with its answers. Ballots: one row per
+          ballot per criterion, the long shape for analysis. Standings and assignments are on the Results and Judges
+          tabs. Organizers only.
         </p>
+        <Button
+          href={`/api/events/${event.id}/entries.csv`}
+          size="sm"
+          variant="dark"
+          className="mt-4 mr-3"
+          icon="arrowUpRight"
+        >
+          Download entries (CSV)
+        </Button>
         <Button
           href={`/api/export.csv?eventId=${event.id}`}
           size="sm"
@@ -619,7 +1615,7 @@ function SubmissionsTab({ event }: { event: HackEvent }) {
           className="mt-4"
           icon="arrowUpRight"
         >
-          Download scores CSV
+          Download every ballot (CSV)
         </Button>
       </Card>
     </div>

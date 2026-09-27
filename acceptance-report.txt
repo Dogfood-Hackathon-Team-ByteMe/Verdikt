@@ -1,7 +1,7 @@
 Verdikt acceptance report
-Generated: 2026-09-27T09:53:10.203Z
+Generated: 2026-09-27T14:43:22.048Z
 Node: v24.18.0
-Tier claimed: 1
+Tiers claimed: 1, 2
 
 Each suite drives the real Express app over HTTP against a throwaway
 MongoDB replica set. No service is called directly, so every role check
@@ -187,6 +187,186 @@ error handling
 
 
 ======================================================================
-TOTAL: 99 passed, 0 failed
-RESULT: Tier 1 acceptance PASSED
+Judging: rubric, ballots and the panel
+======================================================================
+
+the organizer configures a rubric
+  PASS  saves criteria on the event
+  PASS  refuses two criteria sharing a key
+  PASS  drops half-finished rows instead of rejecting the save
+  PASS  a stranger cannot write the rubric of someone else’s event
+
+an event update cannot be used to grant roles
+  PASS  an organiser cannot appoint judges by writing judgeIds
+  PASS  an organiser cannot hand their event to someone else
+  PASS  an organiser cannot feature their own event on the landing page
+
+a ballot is checked against the rubric
+  PASS  accepts a complete ballot
+  PASS  refuses a criterion the rubric does not define
+  PASS  refuses a score above that criterion’s own maximum
+  PASS  refuses a ballot with a criterion left unscored
+  PASS  refuses a score that is not a number
+  PASS  enforces the rubric on PUT /api/scores/:id too
+
+saving a ballot twice edits it rather than failing
+  PASS  the second save replaces the first
+  PASS  a ballot cannot be edited onto a different project
+
+who may cast a ballot
+  PASS  a judge listed only on a track can score
+  PASS  a participant cannot score
+  PASS  a judge of another event cannot score here
+  PASS  an anonymous request cannot score
+  PASS  a draft cannot be scored
+
+a judge reads their own ballots and no one else’s
+  PASS  an event-level judge can list their ballots
+  PASS  one judge never sees another judge’s ballot
+  PASS  the organiser sees every ballot on their own event
+
+appointing judges
+  PASS  the organiser adds a judge to a track by email
+  PASS  refuses to appoint someone competing in the event
+  PASS  refuses to appoint the organiser of the event
+  PASS  a non-organiser cannot appoint judges, and cannot probe for accounts
+  PASS  removing a judge takes the track off their account
+
+an event with no rubric
+  PASS  still accepts a ballot, so ballots cast before rubrics existed stay writable
+  PASS  refuses an empty ballot either way
+
+judges' email addresses are not public
+  PASS  an anonymous reader of /api/tracks sees names but no addresses
+  PASS  a single public track read does not expose addresses either
+  PASS  a signed-in stranger does not get addresses
+  PASS  the organiser of the event does get them, because they manage the panel
+
+34 passed, 0 failed, 34 total
+
+
+======================================================================
+Standings: the computed leaderboard
+======================================================================
+
+the leaderboard is computed from ballots
+  PASS  ranks entries by weighted score, best first
+  PASS  weights each criterion by its own scale, not by raw points
+  PASS  reports the per-criterion average for each entry
+  PASS  counts the ballots behind each entry
+  PASS  gives tied entries the same rank and skips the one behind
+  PASS  ranks within each track as well as overall
+
+entries nobody has scored
+  PASS  are listed but left unranked, not ranked last
+  PASS  sort to the end of the table
+  PASS  show up in the progress counters
+
+judging progress
+  PASS  reports a ballot count per judge on the panel
+  PASS  lists a judge who has not started, rather than omitting them
+
+a draft is not in the running
+  PASS  is left out of the standings entirely
+
+who may read the standings
+  PASS  the organiser of the event can
+  PASS  a judge cannot, because the aggregate reveals their peers
+  PASS  a participant cannot
+  PASS  an anonymous visitor cannot
+  PASS  the organiser of a DIFFERENT event cannot
+  PASS  an admin can
+  PASS  an unknown event is a 404, not an empty table
+
+the standings CSV
+  PASS  has one row per entry, with both scores and each average
+  PASS  leaves the scores blank for an unjudged entry rather than writing 0
+  PASS  quotes a title containing a comma so the columns survive
+  PASS  is refused to a judge, like the JSON
+
+an event with no rubric
+  PASS  produces a table an organiser can still read
+
+24 passed, 0 failed, 24 total
+
+
+======================================================================
+Tier 2: normalization, assignment, scope, invites, exports
+======================================================================
+
+cross-judge normalization in the standings
+  PASS  a harsh and a generous judge who agree on the order produce the same normalized scores
+  PASS  removes a generous judge’s advantage: each judge’s favourite ends up level
+  PASS  a judge with a single ballot is left uncorrected, and the panel says why
+  PASS  an unknown method is a 400, not a silently different ranking
+  PASS  reports how many separately-comparable groups the panel split into
+
+the normalization proof
+  PASS  beats raw scores when judges are biased and entries are dealt at random
+  PASS  costs little when there is no bias to correct
+  PASS  does not fall apart when judges are kept to tracks of different strength
+
+a track judge cannot score other tracks
+  PASS  refuses a ballot on an entry outside the judge’s track
+  PASS  also refuses it through POST /api/scores
+  PASS  allows a judge appointed to both tracks to score either
+  PASS  the judging queue lists only the judge’s own track
+  PASS  a participant gets no queue at all
+  PASS  an admin who is not on the panel cannot cast a ballot
+
+taking a judge off the panel narrows their access, never widens it
+  PASS  a judge removed from their only track can no longer score anything
+  PASS  a removed judge is taken off the event too
+  PASS  a judge removed from one of two tracks keeps the other
+  PASS  a track with entries on it cannot be deleted out from under them
+  PASS  deleting an empty track takes its judges off the event and the track off the event
+
+batch assignment
+  PASS  gives every entry the reviews asked for, from eligible judges only
+  PASS  balances the load when every judge can take every entry
+  PASS  lets track isolation win over balance when the two conflict
+  PASS  reports a shortfall rather than borrowing judges from another track
+  PASS  re-running tops up instead of duplicating
+  PASS  adopts a ballot cast before assignments existed, so nobody is locked out of it
+  PASS  re-dealing does not hand a removed judge back the track they were taken off
+  PASS  once assignments exist, a judge scores their batch and nothing else
+  PASS  a judge with no assignments in a batched event has an empty queue
+  PASS  rejects a nonsense review count
+  PASS  a hand assignment is held to the same track rule
+  PASS  a hand assignment within the track works
+  PASS  an assignment the judge has already scored cannot be removed
+  PASS  clearing assignments returns judges to scoring by track
+  PASS  only the organiser can deal, list or clear assignments
+  PASS  the leaderboard shows how many reviews each entry was assigned
+
+judge invites
+  PASS  someone with no account yet can be invited, sign up, and accept
+  PASS  the public preview masks the address
+  PASS  a forwarded link is useless to a different account
+  PASS  an invite works exactly once
+  PASS  a withdrawn invite cannot be accepted
+  PASS  an expired invite cannot be accepted
+  PASS  someone who joined a team in the meantime is refused when they accept
+  PASS  inviting the same address twice hands back the same open invite
+  PASS  only the organiser can create or list invites
+  PASS  an unknown token is a 404
+
+judge applications cannot cross events or skip the rules
+  PASS  an application naming another event’s track is refused
+  PASS  an organiser cannot apply to judge their own event
+  PASS  an applicant who joins a team before being accepted is not appointed
+
+an export for every stage
+  PASS  entries: every entry, drafts included, with its answers
+  PASS  assignments: who was asked to review what, and whether they have
+  PASS  ballots: each ballot row carries its weighted and normalized score
+  PASS  a title a spreadsheet would run as a formula is defused
+  PASS  every export is refused to a judge, a participant and a stranger
+
+53 passed, 0 failed, 53 total
+
+
+======================================================================
+TOTAL: 210 passed, 0 failed
+RESULT: Tier 1 and Tier 2 acceptance PASSED
 ======================================================================

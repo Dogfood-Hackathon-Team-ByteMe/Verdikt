@@ -3,24 +3,29 @@
 [project]
 name = "Verdikt"
 tagline = "Open, self-hostable hackathon submissions and judging."
-repo = "https://github.com/your-team/verdikt"
+repo = "https://github.com/Dogfood-Hackathon-Team-ByteMe/Verdikt"
 license = "MIT"
 
 [tiers]
-# Claim only what the acceptance report proves. The spec rewards honest
-# underclaiming over overclaiming, so T2 is listed as partial, not claimed.
-claimed = ["T1"]
+# Claim only what the acceptance report proves. Every T2 feature below has
+# HTTP-level tests in backend/tests/stageF-stageH and a browser check.
+claimed = ["T1", "T2"]
 t1 = "complete"
-t2 = "partial"   # scoring, judge isolation and CSV export exist; weighted
-                 # configurable rubrics and cross-judge normalization do not.
+t2 = "complete"  # judge invites (email-bound, single use) and batch assignment
+                 # (N reviews per entry, track-isolated, load-balanced);
+                 # organizer-weighted rubric; role isolation enforced server-side
+                 # (a judge scores only their track or batch); live organizer
+                 # dashboard; cross-judge normalization, method and proof in
+                 # JUDGING.md; CSV export for entries, assignments, ballots and
+                 # standings.
 t3 = "none"
 t4 = "none"
 
 [acceptance]
 report = "acceptance-report.txt"
 command = "cd backend && npm install && npm run acceptance"
-tests_total = 99
-tests_passed = 99
+tests_total = 210
+tests_passed = 210
 
 [run]
 command = "docker compose up"
@@ -40,15 +45,29 @@ project_detail   = "GET /api/projects/:id"
 teams            = "GET /api/teams"
 invite_preview   = "GET /api/invites/token/:token"
 invite_accept    = "POST /api/invites/token/:token/accept"
+ballot           = "PUT /api/scores/ballot"
+scores           = "GET /api/scores?eventId=:id"
+track_judges     = "POST /api/tracks/:id/judges"
+track_judge      = "DELETE /api/tracks/:id/judges/:userId"
+standings        = "GET /api/events/:id/standings"
+standings_csv    = "GET /api/events/:id/standings.csv"
+entries_csv      = "GET /api/events/:id/entries.csv"
+assignments      = "GET|POST|DELETE /api/events/:id/assignments"
+assign_auto      = "POST /api/events/:id/assignments/auto"
+assignments_csv  = "GET /api/events/:id/assignments.csv"
+judge_queue      = "GET /api/judge/queue?eventId=:id"
+judge_invites    = "GET|POST /api/tracks/:id/judge-invites"
+judge_invite     = "GET /api/judge-invites/token/:token"
+judge_accept     = "POST /api/judge-invites/token/:token/accept"
 health           = "GET /health"
 
 # Bare paths used by run.py. It appends nothing and sends no method,
 # so each of these is a complete URL path.
 gallery      = "/api/projects"
-submit       = "/api/projects/6ab8d8953c07ed286e6c8c60/submit"
+submit       = "/api/projects/6ab919034094777524ec213c/submit"
 judge_scores = "/api/judge/scores"
 peer_scores  = "/api/scores?judge=6ab8d8933c07ed286e6c8ad9"
-csv_export   = "/api/export.csv?eventId=6ab8d8933c07ed286e6c8b54"
+csv_export   = "/api/export.csv?eventId=6ab919024094777524ec2030"
 [demo]
 password = "dogfood2026"
 admin = "admin@verdikt.dev"
@@ -57,19 +76,22 @@ judge = "judge@verdikt.dev"
 participant = "participant@verdikt.dev"
 
 [bonus]
-# Not claimed. Listed so the gap is explicit rather than implied.
-normalization_proof = false
+# normalization_proof: `npm run normalization-proof` simulates events with
+# known entry quality and known judge bias and measures each method's ranking
+# against the truth, including the case where the textbook method fails. The
+# suite re-checks those properties. Results and caveats are in JUDGING.md.
+# The rest are not claimed, and are listed so the gap is explicit.
+normalization_proof = true
 pairwise_mode = false
 threat_model = false
 api_first = false
 
 [portal]
 base_url = "http://localhost:8080"
-
 [auth]
 # Session cookies, minted by `npm run dogfood-config`. They expire after
 # 24 hours -- re-run that command before a grading pass.
-participant = "Cookie: session=3b162c219b0636092579a1d0ac151329f346ba8408e82b448be2cae762497deb"
-judge_a = "Cookie: session=cc9069d9dcb797e8103b31aa47ee9701edb1e35e9f2647efdea9e9d5e52b80a9"
-judge_b = "Cookie: session=15efcf54be952906c820c439dac160a87a5c81612d4ff8dcde022fdc52f628dc"
-organizer = "Cookie: session=cff9a608446266fef620ba8f711b829fb7b6b3277947af3eb3297a9a53c359d5"
+participant = "Cookie: session=c55c855bf59d528fd99f4dedb84624c7dfe31f4c77fab9a8ea9dba232798c4bf"
+judge_a = "Cookie: session=66db0445fd285179a39ffcc81ca599f2a086451692c34bce46b1847af9c8db18"
+judge_b = "Cookie: session=8564cb0fb336a3229f9e5891ba6e849d8c0aa19b0740574dfd8fbc98d82b438f"
+organizer = "Cookie: session=0c16ae12039b23c5ba8dfff9abe05b8171c057218249c19c8823c523b4716036"

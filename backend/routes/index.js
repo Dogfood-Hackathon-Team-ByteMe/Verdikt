@@ -13,10 +13,12 @@ import notificationRoutes from "./notificationRoutes.js";
 import joinRequestRoutes from "./joinRequestRoutes.js";
 import judgeApplicationRoutes from "./judgeApplicationRoutes.js";
 import imageRoutes from "./imageRoutes.js";
-import { authenticate } from "../middlewares/authMiddleware.js";
+import judgeInviteRoutes from "./judgeInviteRoutes.js";
+import assignmentRoutes from "./assignmentRoutes.js";
+import { authenticate, requireAuth } from "../middlewares/authMiddleware.js";
 import * as scoreController from "../controllers/ScoreController.js";
-import Score from "../models/Score.js";
-import Project from "../models/Project.js";
+import * as standingsController from "../controllers/StandingsController.js";
+import * as assignmentController from "../controllers/AssignmentController.js";
 
 const router = express.Router();
 
@@ -36,6 +38,8 @@ router.use("/invites", inviteRoutes);
 router.use("/notifications", notificationRoutes);
 router.use("/join-requests", joinRequestRoutes);
 router.use("/judge-applications", judgeApplicationRoutes);
+router.use("/judge-invites", judgeInviteRoutes);
+router.use("/assignments", assignmentRoutes);
 
 // ============================================================
 // ACCEPTANCE CHECKER ROUTES
@@ -46,73 +50,13 @@ router.use("/judge-applications", judgeApplicationRoutes);
 // The getJudgeScores handler does its own auth checks (returns 401/403 as needed)
 router.get("/judge/scores", authenticate, scoreController.getFiltered);
 
-// T2: CSV Export - organizer only
-router.get("/export.csv", authenticate, async (req, res, next) => {
-	try {
-		// Must be authenticated
-		if (!req.user) {
-			return res.status(401).json({
-				success: false,
-				error: "Unauthorized",
-				message: "Authentication required",
-			});
-		}
+// The judge's own queue for one event: exactly the entries they may score, as
+// decided by services/JudgeScope.js. The judging page renders this list as-is.
+router.get("/judge/queue", authenticate, requireAuth, assignmentController.queue);
 
-		// Only organizer or admin can export
-		const eventId = req.query.eventId;
-		if (!eventId) {
-			return res.status(400).json({ success: false, error: "Bad Request", message: "eventId query parameter is required" });
-		}
-
-		const isOrganizer = req.user.organiserIn && req.user.organiserIn.some(id => id.toString() === eventId.toString());
-		const isAdmin = req.user.isAdmin;
-		if (!isOrganizer && !isAdmin) {
-			return res.status(403).json({ success: false, error: "Forbidden", message: "Only the organizer of this event can export data" });
-		}
-
-		const scores = await Score.find({ eventId })
-			.populate("judgeId", "name email")
-			.populate({
-				path: "projectId",
-				select: "title trackId teamId",
-				populate: [
-					{ path: "trackId", select: "topic" },
-					{ path: "teamId", select: "name" },
-				],
-			});
-
-		// Build CSV
-		let csv =
-			"judge_name,judge_email,project_title,team_name,track,criteria,score,comment\n";
-
-		for (const score of scores) {
-			const judgeName = score.judgeId?.name || "Unknown";
-			const judgeEmail = score.judgeId?.email || "Unknown";
-			const projectTitle = score.projectId?.title || "Unknown";
-			const teamName = score.projectId?.teamId?.name || "Unknown";
-			const trackName = score.projectId?.trackId?.topic || "Unknown";
-			const comment = (score.comment || "").replace(/"/g, '""'); // escape quotes
-
-			if (score.scores && score.scores instanceof Map) {
-				for (const [criteria, value] of score.scores) {
-					csv += `"${judgeName}","${judgeEmail}","${projectTitle}","${teamName}","${trackName}","${criteria}",${value},"${comment}"\n`;
-				}
-			} else if (score.scores && typeof score.scores === "object") {
-				for (const [criteria, value] of Object.entries(score.scores)) {
-					csv += `"${judgeName}","${judgeEmail}","${projectTitle}","${teamName}","${trackName}","${criteria}",${value},"${comment}"\n`;
-				}
-			}
-		}
-
-		res.setHeader("Content-Type", "text/csv");
-		res.setHeader(
-			"Content-Disposition",
-			'attachment; filename="scores_export.csv"',
-		);
-		res.send(csv);
-	} catch (error) {
-		next(error);
-	}
-});
+// T2: CSV export of every ballot. Organiser of the event or admin only. The
+// path predates the per-event exports (/api/events/:id/*.csv) and is kept
+// because the acceptance checker calls it.
+router.get("/export.csv", authenticate, requireAuth, standingsController.getBallotsCsv);
 
 export default router;

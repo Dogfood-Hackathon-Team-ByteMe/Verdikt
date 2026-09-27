@@ -1,5 +1,6 @@
 import * as scoreService from "../services/ScoreService.js";
 import { idsOf } from "../utils/eventRoles.js";
+import Event from "../models/Event.js";
 
 export const create = async (req, res, next) => {
 	try {
@@ -8,6 +9,20 @@ export const create = async (req, res, next) => {
 			success: true,
 			data: score,
 			message: "Score submitted successfully",
+		});
+	} catch (error) {
+		next(error);
+	}
+};
+
+/** Create or replace this judge's ballot for a project in one call. */
+export const upsert = async (req, res, next) => {
+	try {
+		const score = await scoreService.upsertScore(req.body, req.user);
+		res.json({
+			success: true,
+			data: score,
+			message: "Ballot saved",
 		});
 	} catch (error) {
 		next(error);
@@ -39,7 +54,14 @@ export const getFiltered = async (req, res, next) => {
 
 		const isAdmin = req.user.isAdmin;
 		const organiserIn = idsOf(req.user.organiserIn);
-		const isJudgeSomewhere = (req.user.judgeIn || []).length > 0;
+
+		// A judge is listed one of two ways -- on the event (event.judgeIds) or
+		// on one of its tracks (user.judgeIn). Reading only judgeIn meant an
+		// event-level judge, who has none, was refused their own ballots.
+		// The query only runs for the users judgeIn does not already answer for.
+		const isJudgeSomewhere =
+			(req.user.judgeIn || []).length > 0 ||
+			Boolean(await Event.exists({ judgeIds: req.user._id }));
 
 		// "Organiser" is per event, not a rank. Organising one hackathon must
 		// not unlock another's ballots, so the claim is checked against the

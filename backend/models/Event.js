@@ -29,6 +29,29 @@ const customQuestionSchema = new mongoose.Schema({
     required: { type: Boolean, default: false },
 }, { _id: false });
 
+/**
+ * One line of the organizer's scoring rubric.
+ *
+ * Weights are relative, not percentages: a rubric of 3/1/1 and one of 60/20/20
+ * rank identically, so the organizer can think in whichever they prefer and the
+ * form never has to nag about summing to 100. The weighted score of a ballot is
+ * `sum(score_i / maxScore_i * weight_i) / sum(weight_i)`, which lands in 0..1
+ * whatever scale each line uses.
+ *
+ * Subdocument rather than its own collection, for the same reason as prizes and
+ * custom questions: a rubric is never read apart from its event.
+ */
+const criterionSchema = new mongoose.Schema({
+    // Stable machine key. It is the Score.scores map key, so renaming one
+    // orphans every ballot already cast against it.
+    key: { type: String, required: true },
+    label: { type: String, required: true },
+    description: { type: String },
+    weight: { type: Number, default: 1, min: 0 },
+    // Top of the scale for this line. 5 gives the familiar 1-5 ballot.
+    maxScore: { type: Number, default: 5, min: 1 },
+}, { _id: false });
+
 const eventSchema = new mongoose.Schema({
     name: { type: String, required: true },
     description: { type: String },
@@ -45,6 +68,10 @@ const eventSchema = new mongoose.Schema({
 
     prizes: [prizeSchema],
     customQuestions: [customQuestionSchema],
+
+    // The scoring rubric judges fill in. Empty means no rubric is configured
+    // yet, and JudgeService refuses to open judging until it is not.
+    criteria: [criterionSchema],
 
     eventTags: [{ type: String }],
     minTeamSize: { type: Number, default: 1, min: 1 },

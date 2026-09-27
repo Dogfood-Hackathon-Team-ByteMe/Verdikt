@@ -21,20 +21,41 @@ export function Segmented<T extends string>({
   className?: string
 }) {
   const refs = useRef<Record<string, HTMLButtonElement | null>>({})
+  const list = useRef<HTMLDivElement>(null)
   const [pill, setPill] = useState({ left: 0, width: 0 })
 
+  /**
+   * Re-measure on any geometry change, not just a window resize.
+   *
+   * Tab labels often carry a count that arrives with the data -- "Rubric (3)"
+   * is "Rubric (0)" for the first paint -- so the tabs after it shift sideways
+   * while `value` never changes and the window never resizes. The pill kept its
+   * first measurement and ended up sitting under the wrong tab. A
+   * ResizeObserver on the strip catches that, and the scrollbar-induced width
+   * changes that do not always fire a resize event either.
+   */
   useLayoutEffect(() => {
     const measure = () => {
       const el = refs.current[value]
       if (el) setPill({ left: el.offsetLeft, width: el.offsetWidth })
     }
     measure()
+
+    const strip = list.current
+    const observer = new ResizeObserver(measure)
+    if (strip) {
+      observer.observe(strip)
+      for (const child of Array.from(strip.children)) observer.observe(child)
+    }
     window.addEventListener('resize', measure)
-    return () => window.removeEventListener('resize', measure)
-  }, [value])
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', measure)
+    }
+  }, [value, options])
 
   return (
-    <div role="tablist" aria-label={label} className={cn('relative inline-flex max-w-full flex-wrap gap-1 rounded-full bg-fog p-1', className)}>
+    <div ref={list} role="tablist" aria-label={label} className={cn('relative inline-flex max-w-full flex-wrap gap-1 rounded-full bg-fog p-1', className)}>
       <span
         className="absolute top-1 bottom-1 rounded-full bg-yellow shadow-[0_6px_16px_-8px_rgba(120,160,10,0.9)] transition-[left,width] duration-500 ease-spring max-sm:hidden"
         style={{ left: pill.left, width: pill.width }}

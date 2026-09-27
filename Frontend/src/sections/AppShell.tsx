@@ -21,6 +21,7 @@ const links = [
   { to: '/projects', label: 'Projects' },
   { to: '/events', label: 'Events' },
   { to: '/dashboard', label: 'Dashboard', authOnly: true },
+  { to: '/judge', label: 'Judge', authOnly: true },
   { to: '/organizer', label: 'Organize', authOnly: true },
 ]
 

@@ -12,6 +12,8 @@ import Dashboard from './pages/Dashboard'
 import EventEditor from './pages/EventEditor'
 import EventsPage from './pages/EventsPage'
 import InvitePage from './pages/InvitePage'
+import JudgeInvitePage from './pages/JudgeInvitePage'
+import JudgePage from './pages/JudgePage'
 import Landing from './pages/Landing'
 import NotFound from './pages/NotFound'
 import OrganizerHome from './pages/OrganizerHome'
@@ -35,6 +37,8 @@ export function AppRoutes() {
       {/* The invite preview is public on purpose: you should be able to see
           which team invited you before deciding to make an account. */}
       <Route path="/invite/:token" element={<InvitePage />} />
+      {/* Same reasoning for judges: see which event and track before signing up. */}
+      <Route path="/judge-invite/:token" element={<JudgeInvitePage />} />
 
       {/* Signed in */}
       <Route
@@ -58,6 +62,17 @@ export function AppRoutes() {
         element={
           <RequireAuth>
             <TeamPage />
+          </RequireAuth>
+        }
+      />
+      {/* Judging. Like the organizer route, the guard is only RequireAuth:
+          which events you judge is per event, and the page shows an empty
+          state rather than a 403 when you judge none. */}
+      <Route
+        path="/judge"
+        element={
+          <RequireAuth>
+            <JudgePage />
           </RequireAuth>
         }
       />

@@ -101,6 +101,9 @@ async function main() {
         ].join('\n'),
     );
 
+    // This REPLACES the whole [routes] section, so the template below has to
+    // list every route worth documenting -- anything added to .dogfood.toml by
+    // hand disappears the next time this runs.
     toml = upsertSection(
         toml,
         'routes',
@@ -117,6 +120,20 @@ async function main() {
             'teams            = "GET /api/teams"',
             'invite_preview   = "GET /api/invites/token/:token"',
             'invite_accept    = "POST /api/invites/token/:token/accept"',
+            'ballot           = "PUT /api/scores/ballot"',
+            'scores           = "GET /api/scores?eventId=:id"',
+            'track_judges     = "POST /api/tracks/:id/judges"',
+            'track_judge      = "DELETE /api/tracks/:id/judges/:userId"',
+            'standings        = "GET /api/events/:id/standings"',
+            'standings_csv    = "GET /api/events/:id/standings.csv"',
+            'entries_csv      = "GET /api/events/:id/entries.csv"',
+            'assignments      = "GET|POST|DELETE /api/events/:id/assignments"',
+            'assign_auto      = "POST /api/events/:id/assignments/auto"',
+            'assignments_csv  = "GET /api/events/:id/assignments.csv"',
+            'judge_queue      = "GET /api/judge/queue?eventId=:id"',
+            'judge_invites    = "GET|POST /api/tracks/:id/judge-invites"',
+            'judge_invite     = "GET /api/judge-invites/token/:token"',
+            'judge_accept     = "POST /api/judge-invites/token/:token/accept"',
             'health           = "GET /health"',
             '',
             '# Bare paths used by run.py. It appends nothing and sends no method,',

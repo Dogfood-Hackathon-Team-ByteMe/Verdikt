@@ -3,29 +3,43 @@
 
 export const judgeCompanies = ['Microsoft', 'Amazon', 'Meta', 'Adobe', 'GoDaddy', 'Walmart', 'Wise', 'ChargePoint', 'T-Bank', 'Avito']
 
-export const tiers = [
+/**
+ * `status` is the one thing here that goes stale if nobody updates it, so
+ * keep it in step with the claim in `.dogfood.toml` -- that file, plus
+ * `acceptance-report.txt`, is what actually proves it.
+ *   done       shipped and tested; claimed in .dogfood.toml
+ *   building   in progress right now
+ *   planned    not started
+ */
+export type TierStatus = 'done' | 'building' | 'planned'
+
+export const tiers: { id: string; name: string; note: string; status: TierStatus; features: string[] }[] = [
   {
     id: 'T1',
     name: 'Core',
     note: 'Required to be judged',
+    status: 'done',
     features: ['Sign-in and sessions', 'Five roles, visitor to admin', 'Events with dates, tracks, prizes', 'Teams by invite link', 'Drafts editable until the deadline', 'Deadline enforced on the server', 'Public gallery with search'],
   },
   {
     id: 'T2',
     name: 'Judging',
     note: 'Where the real engineering starts',
+    status: 'done',
     features: ['Judge invites and batch assignment', 'Weighted rubric set by organizers', 'Role isolation in the backend', 'Live organizer dashboard', 'Cross-judge normalization', 'CSV export at every stage'],
   },
   {
     id: 'T3',
     name: 'Public',
     note: 'Let the crowd in, safely',
+    status: 'planned',
     features: ['Community voting modes', 'Comments on projects', 'Results hidden while voting', 'Randomized project order', 'Rate limits and audit trail'],
   },
   {
     id: 'T4',
     name: 'Stretch',
     note: 'For teams with time left',
+    status: 'planned',
     features: ['REST API and webhooks', 'Certificates and records', 'Signed judge participation', 'Embeddable gallery widget', 'Bulk import and export'],
   },
 ]
@@ -93,6 +107,6 @@ export const faq = [
   },
   {
     q: 'Can visitors see scores?',
-    a: 'No. Visitors and participants can browse every project, but scores stay hidden until the organizers publish results.',
+    a: 'No. Visitors and participants can browse every project, but scores and rankings are visible only to the organizers of the event, and each judge sees only their own ballots.',
   },
 ]

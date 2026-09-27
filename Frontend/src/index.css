@@ -91,6 +91,8 @@
   --animate-float-slow: float 9s ease-in-out infinite;
   --animate-ring: ring 70s linear infinite;
   --animate-pulse-dot: pulse-dot 1.8s ease-out infinite;
+  /* One-shot: a bar/row briefly says "a ballot just landed here". */
+  --animate-landed: landed 0.9s var(--ease-out-soft);
 
   @keyframes marquee {
     from { transform: translateX(0); }
@@ -107,6 +109,11 @@
   @keyframes pulse-dot {
     0% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 55%, transparent); }
     100% { box-shadow: 0 0 0 8px transparent; }
+  }
+  @keyframes landed {
+    0% { filter: brightness(1); }
+    35% { filter: brightness(1.5); }
+    100% { filter: brightness(1); }
   }
 }
 
