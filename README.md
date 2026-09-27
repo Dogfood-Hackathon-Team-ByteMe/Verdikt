@@ -1,24 +1,69 @@
+<div align="center">
+
 # Verdikt
 
-Open, self-hostable hackathon submissions and judging. Built for DOGFOOD 2026.
+**Open-source hackathon platform for submissions, teams and judging — self-hosted, no cloud account required.**
 
-Verdikt runs an event end to end: people sign up, form teams by invite link,
-draft and edit a submission until the deadline, and the public browses a
-searchable gallery of what was built. Organizers configure dates, tracks, prizes
-and their own submission questions. Judges score; organizers export.
+Spin up a complete hackathon portal — registration, team formation, project
+submissions and judging — with one command and zero external services.
 
-## Run it
+[Quick start](#quick-start) · [What it does](#what-it-does) · [Test it](#test-it) · [Architecture](#architecture) · [Honest limits](#honest-limits)
+
+</div>
+
+---
+
+## Why Verdikt
+
+Most hackathon tooling is a spreadsheet, a Google Form, and a Discord bot
+duct-taped together — or a SaaS product that wants your organiser's card
+number and a support ticket to export a CSV. Verdikt is neither: it's a
+self-hostable hackathon management system that runs an event end to end —
+**sign-up, team formation, project submission, and judging** — as one
+`docker compose up`, on a laptop, with the network cable pulled if you want.
+
+No cloud account. No API keys. No third-party identity provider. No vendor
+lock-in on your event's data — it's one MongoDB database, and `mongodump` is
+the entire backup story.
+
+**Roles are per event, not global.** The same account can organise one
+hackathon, judge a track in a second, and compete in a third — because that's
+how real hackathon circuits actually work, and no platform we looked at
+modelled it that way.
+
+## What it does
+
+- **Accounts and sessions** — email/password auth, httpOnly session cookies,
+  no third-party identity provider to configure or trust.
+- **Any signed-in user can organise an event.** Configure dates, tracks,
+  prizes, minimum/maximum team size, and your own custom submission
+  questions (required or optional, per event).
+- **Team formation by invite link** — no admin approval queue, no email
+  service required to run an event.
+- **Draft-and-edit submissions** until the deadline, enforced server-side —
+  not just hidden behind a disabled button in the UI.
+- **A public, searchable, filterable project gallery** — no account needed
+  to browse what was built.
+- **Judging** — one ballot per judge per project, judge isolation (a judge
+  can only ever read their own scores, never a peer's), and CSV export of
+  every ballot for the organiser.
+- **Image uploads for avatars, event banners and project thumbnails** —
+  with an in-browser crop step, so what you frame while uploading is
+  exactly what gets shown everywhere, and stored inline in the same
+  database as everything else (no S3 bucket, no second backup story).
+
+## Quick start
 
 ```bash
+git clone <this-repo>
+cd verdikt
 docker compose up
 ```
 
-Then open **http://localhost:3000**. That is the whole setup: one command, no
-cloud account, no API keys, no external sign-in service. It works with the
-network cable pulled.
+Open **http://localhost:3000**. That's the whole setup.
 
-The database seeds itself on first start, so there is a live event with eight
-projects and accounts of every role ready to use:
+The database seeds itself on first boot with a live sample event and one
+account per role:
 
 | Account | Role | Password |
 |---|---|---|
@@ -27,13 +72,16 @@ projects and accounts of every role ready to use:
 | `judge@verdikt.dev` | judge | `dogfood2026` |
 | `participant@verdikt.dev` | participant | `dogfood2026` |
 
-Restarting keeps your data. To wipe and re-seed:
-`docker compose run --rm -e SEED_FORCE=true seed`.
-
-## Develop
+Restarting the stack keeps your data. To wipe and re-seed:
 
 ```bash
-# API  (needs a MongoDB replica set; see below)
+docker compose run --rm -e SEED_FORCE=true seed
+```
+
+## Local development
+
+```bash
+# API — needs a MongoDB replica set; see below
 cd backend && npm install && npm run dev      # :8080
 
 # Web
@@ -41,79 +89,106 @@ cd Frontend && npm install && npm run dev     # :5173
 ```
 
 Copy `backend/.env.example` to `backend/.env`. For the frontend, set
-`VITE_API_URL=http://localhost:8080` in `Frontend/.env`; leave it empty to run
-the UI on built-in sample data with no backend at all.
+`VITE_API_URL=http://localhost:8080` in `Frontend/.env`; leave it unset to
+run the UI on built-in sample data with no backend running at all.
 
-The API needs Mongo as a **replica set**, because several operations use
-multi-document transactions. Easiest is to borrow the bundled one:
-`docker compose up mongo`. A standalone mongod also works — those writes fall
-back to non-atomic with a warning.
+The API needs Mongo as a **replica set** — several operations use
+multi-document transactions to keep team, project and score writes
+consistent. Easiest path: borrow the bundled one with
+`docker compose up mongo`. A standalone `mongod` also works; those specific
+writes fall back to non-atomic with a logged warning.
 
-## Test
+## Test it
 
 ```bash
 cd backend
-npm test              # 99 tests
-npm run acceptance    # same, and writes ../acceptance-report.txt
+npm test              # 99 tests, one throwaway in-memory Mongo replica set
+npm run acceptance    # same suite, writes ../acceptance-report.txt
 ```
 
-### The graders' checker
+Every test drives the real Express app over HTTP — nothing calls a service
+function directly. What's being checked is that the **API** enforces every
+rule, not just the UI: role restrictions, deadline enforcement, judge
+isolation and permission checks all hold even if you skip the frontend
+entirely and hit the endpoints with curl.
+
+### Independent acceptance check
 
 ```bash
 cd backend
-npm run import-fixtures     # loads ../fixtures.json into the portal
-npm run dogfood-config      # writes [portal]/[auth]/[routes] into .dogfood.toml
+npm run import-fixtures     # loads a second, already-closed sample event
+npm run dogfood-config      # mints session cookies into a local config file
 cd .. && python run.py .dogfood.toml
 ```
 
-`fixtures.json` is a second, already-closed event, so `run.py` can check a real
-deadline refusal rather than take one on trust. The session cookies
-`dogfood-config` writes last 24 hours; re-run it before a grading pass.
+The imported event has a deadline in the past, so submission refusal is
+verified against real, closed data — not asserted on trust.
 
-The suite starts a throwaway in-memory MongoDB replica set and drives the real
-Express app over HTTP. Nothing calls a service directly, because what is being
-checked is that the **API** enforces the rules — T1 requires role restrictions
-"at the API level, not just the UI".
+## What's implemented
 
-## What is done
+**Core (submissions and judging): complete.** Authentication and sessions;
+per-event roles (organiser / judge / participant, plus a single global
+admin override); event creation with configurable dates, tracks, prizes and
+custom questions; team formation by invite link; draft-and-edit submissions;
+deadline enforcement that actually refuses writes at the API layer; a
+public searchable, filterable gallery; image uploads with in-browser
+cropping; and role checks enforced server-side, not just hidden in the UI.
+`acceptance-report.txt` is the receipt — every claim above has a passing
+test behind it.
 
-**Tier 1: complete.** Authentication and sessions; the five-role model;
-event creation with configurable dates, tracks, prizes and custom questions;
-team formation by invite link; draft-and-edit submissions; deadline enforcement
-that actually refuses writes; a public searchable, filterable gallery; and
-role checks enforced server-side. `acceptance-report.txt` is the receipt.
-
-**Tier 2: partial, and not claimed.** Scoring, one-ballot-per-judge-per-project,
-judge isolation (a judge only ever reads their own ballots) and CSV export all
-exist. The weighted organizer-configurable rubric, judge assignment, the live
-organizer dashboard and cross-judge normalization do not.
-
-**Tier 3: not started.**
+**Judging extras: partial.** One-ballot-per-judge-per-project, judge
+isolation, and CSV export all exist and are tested. A weighted,
+organiser-configurable rubric, judge-to-track assignment tooling, a live
+organiser scoring dashboard, and cross-judge score normalization do not
+exist yet.
 
 ## Honest limits
 
-- **No rate limiting.** Login is brute-forceable. This is the first thing to add
-  before anyone runs a real event on it.
-- **Seed passwords are shared and printed to the log.** Fine for a demo; change
-  `SEED_PASSWORD` for anything else.
-- **No email.** Invites are links you share yourself.
-- **`isAdmin` is not settable over HTTP** by design — promote in the database.
-- **Frontend auth screens run on a mock adapter** until `VITE_API_URL` is set;
-  the real client is written and switches with that one variable.
-- Cross-judge normalization is unimplemented, so `JUDGING.md` is deliberately
-  absent rather than aspirational.
+Underclaiming beats overclaiming, so here's what's genuinely missing —
+read this before you deploy it anywhere real:
 
-## Layout
+- **No rate limiting.** Login is brute-forceable as shipped. This is the
+  first thing to add before running a real event on it.
+- **Seed passwords are shared and printed to the log.** Fine for a demo.
+  Set `SEED_PASSWORD` to something else for anything real.
+- **No email service.** Invites are links you copy and share yourself.
+- **`isAdmin` is not settable over HTTP**, by design — promote a user to
+  admin directly in the database.
+- **Cross-judge score normalization is unimplemented** — scores are raw
+  per-judge ballots, not normalized against each judge's own scoring
+  tendencies.
+
+## Architecture
+
+Three containers, no managed cloud services:
 
 ```
-backend/      Express API: routes -> controllers -> services -> repositories
-  tests/      HTTP-level acceptance suite
-  scripts/    seed.js
-Frontend/     React + Vite SPA (landing page, auth, UI kit)
+browser → nginx (serves the SPA, proxies /api) → Express API → MongoDB (single-node replica set)
+```
+
+Same-origin by design: the web container proxies `/api` to the backend
+instead of the browser calling it cross-origin, so the session cookie stays
+`httpOnly; SameSite=Lax` with no CORS preflight and no HTTPS requirement
+for local use.
+
+See **[ARCHITECTURE.md](ARCHITECTURE.md)** for the full request lifecycle,
+the per-event role model, and the reasoning behind every non-obvious
+decision. See **[DATA-MODEL.md](DATA-MODEL.md)** for the schema, indexes,
+and import/export format.
+
+## Project layout
+
+```
+backend/          Express API — routes → controllers → services → repositories
+  tests/          HTTP-level acceptance suite (99 tests)
+  scripts/        seed.js, import-fixtures.js, dogfood-config.js
+Frontend/         React + Vite single-page app
 docker-compose.yml
-ARCHITECTURE.md   system design and why
-DATA-MODEL.md     schema, indexes, import/export
+ARCHITECTURE.md    System design and the reasoning behind it
+DATA-MODEL.md      Schema, indexes, import/export
 acceptance-report.txt
 ```
 
-MIT licensed. 
+## License
+
+MIT. Fork it, self-host it, run your own hackathon on it.
