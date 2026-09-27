@@ -228,6 +228,74 @@ async function seed() {
     await Score.insertMany(ballots);
     console.log(`Created ${ballots.length} scores`);
 
+    // --- A second, already-closed event -----------------------------------
+    //
+    // Two things need this to exist.
+    //
+    // Roles are per event, not global, and the only way to show that is to
+    // have more than one event: the organiser of DOGFOOD 2026 enters a team
+    // here as an ordinary competitor, and a competitor from DOGFOOD 2026 runs
+    // this one. Neither may take part in the event they run.
+    //
+    // It is also the only event with a deadline in the past, which is what
+    // makes "a closed event refuses submissions" demonstrable rather than
+    // asserted. Its project stays a DRAFT so the public gallery still returns
+    // exactly the seven submitted entries of the featured event.
+    const pastOrganiser = participants[4]; // Diffscope Lead, a competitor above
+    const closedEvent = await Event.create({
+        name: 'Verdikt Autumn Sprint',
+        tagline: 'A weekend build, already wrapped up.',
+        description: 'A finished event, kept around so closed-deadline behaviour is visible.',
+        organiserId: pastOrganiser._id,
+        judgeIds: [judges[1]._id],
+        startsAt: new Date(Date.now() - hours(96)),
+        submissionsClose: new Date(Date.now() - hours(24)), // shut yesterday
+        minTeamSize: 1,
+        maxTeamSize: 4,
+        isFeatured: false,
+        prizes: [{ name: 'Winner', amountUsd: 250 }],
+        customQuestions: [],
+    });
+
+    const closedTrack = await Track.create({
+        topic: 'Weekend Builds',
+        description: 'Anything finished in 48 hours.',
+        eventId: closedEvent._id,
+        judges: [judges[1]._id],
+    });
+    closedEvent.tracks = [closedTrack._id];
+    await closedEvent.save();
+
+    await User.findByIdAndUpdate(pastOrganiser._id, { $addToSet: { organiserIn: closedEvent._id } });
+    await User.findByIdAndUpdate(judges[1]._id, { $addToSet: { judgeIn: closedTrack._id } });
+
+    // The organiser of DOGFOOD 2026 competing in somebody else's event.
+    const lateTeam = await Team.create({
+        name: 'Late Entry',
+        description: 'Ran out of clock.',
+        eventId: closedEvent._id,
+        members: [organizer._id],
+        hasMinimumMembers: true,
+    });
+    await User.findByIdAndUpdate(organizer._id, { $addToSet: { participatingIn: closedEvent._id } });
+
+    const lateProject = await Project.create({
+        title: 'Late Entry',
+        tagline: 'Never made it past the deadline',
+        summary: 'A draft left behind when the window shut.',
+        repoUrl: 'https://github.com/example/late-entry',
+        codeRepoLink: 'https://github.com/example/late-entry',
+        techTags: ['TypeScript'],
+        teamId: lateTeam._id,
+        trackId: closedTrack._id,
+        eventId: closedEvent._id,
+        status: 'draft',
+    });
+    await Team.findByIdAndUpdate(lateTeam._id, { projectId: lateProject._id });
+
+    console.log(`Created closed event "${closedEvent.name}" (organiser ${pastOrganiser.email})`);
+    console.log(`  ${organizer.email} organises DOGFOOD 2026 and competes here -- roles are per event`);
+
     console.log('\nSeed complete. Sign in with any of:');
     console.log(`  admin@verdikt.dev        (admin)       / ${DEMO_PASSWORD}`);
     console.log(`  organizer@verdikt.dev    (organizer)   / ${DEMO_PASSWORD}`);

@@ -5,19 +5,28 @@
  * `navLinks` is exported so the footer reuses the same list.
  */
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Button, Container, Icon, Logo, ThemeToggle, cn } from '../ui'
 import { useAuth } from '../auth/AuthProvider'
 import { AccountMenu } from './AccountMenu'
 
+/**
+ * `href` starting with "#" scrolls within the landing page; anything else is a
+ * route and is rendered as a router Link so it does not reload the app.
+ * Exported because the footer reuses the same list.
+ */
 export const navLinks = [
   { href: '#about', label: 'About' },
+  { href: '/projects', label: 'Projects' },
+  { href: '/events', label: 'Events' },
   { href: '#tiers', label: 'Tiers' },
   { href: '#scoring', label: 'Scoring' },
-  { href: '#gallery', label: 'Gallery' },
   { href: '#timeline', label: 'Timeline' },
   { href: '#prizes', label: 'Prizes' },
   { href: '#faq', label: 'FAQ' },
 ]
+
+export const isAnchor = (href: string) => href.startsWith('#')
 
 export function Nav() {
   const [scrolled, setScrolled] = useState(false)
@@ -45,17 +54,28 @@ export function Nav() {
         </a>
 
         <nav aria-label="Main" className="hidden items-center gap-1 lg:flex">
-          {navLinks.map((l) => (
-            <a
-              key={l.href}
-              href={l.href}
-              className="group relative rounded-md px-3 py-2 font-mono text-[0.78rem] font-bold text-ink transition-colors duration-200 hover:text-blue"
-            >
-              {l.label}
-              {/* underline grows in from the left on hover */}
-              <span className="absolute inset-x-3 bottom-1 h-[2px] origin-left scale-x-0 bg-blue transition-transform duration-300 ease-out-soft group-hover:scale-x-100" aria-hidden="true" />
-            </a>
-          ))}
+          {navLinks.map((l) => {
+            const className =
+              'group relative rounded-md px-3 py-2 font-mono text-[0.78rem] font-bold text-ink transition-colors duration-200 hover:text-blue'
+            // underline grows in from the left on hover
+            const underline = (
+              <span
+                className="absolute inset-x-3 bottom-1 h-[2px] origin-left scale-x-0 bg-blue transition-transform duration-300 ease-out-soft group-hover:scale-x-100"
+                aria-hidden="true"
+              />
+            )
+            return isAnchor(l.href) ? (
+              <a key={l.href} href={l.href} className={className}>
+                {l.label}
+                {underline}
+              </a>
+            ) : (
+              <Link key={l.href} to={l.href} className={className}>
+                {l.label}
+                {underline}
+              </Link>
+            )
+          })}
         </nav>
 
         <div className="flex items-center gap-2">
@@ -85,18 +105,29 @@ export function Nav() {
         <nav aria-label="Mobile" className="min-h-0">
           <Container>
             <ul className="flex flex-col py-2">
-              {navLinks.map((l) => (
-                <li key={l.href}>
-                  <a
-                    href={l.href}
-                    onClick={() => setOpen(false)}
-                    className="flex items-center justify-between border-b border-line py-3 font-mono text-[0.95rem] font-bold"
-                  >
+              {navLinks.map((l) => {
+                const className =
+                  'flex items-center justify-between border-b border-line py-3 font-mono text-[0.95rem] font-bold'
+                const body = (
+                  <>
                     {l.label}
                     <Icon name="arrowRight" size={16} className="text-subtle" />
-                  </a>
-                </li>
-              ))}
+                  </>
+                )
+                return (
+                  <li key={l.href}>
+                    {isAnchor(l.href) ? (
+                      <a href={l.href} onClick={() => setOpen(false)} className={className}>
+                        {body}
+                      </a>
+                    ) : (
+                      <Link to={l.href} onClick={() => setOpen(false)} className={className}>
+                        {body}
+                      </Link>
+                    )}
+                  </li>
+                )
+              })}
               <li className="flex flex-col gap-2 py-4">
                 {user ? (
                   <>

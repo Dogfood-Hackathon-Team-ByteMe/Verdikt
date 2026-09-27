@@ -44,6 +44,13 @@ export interface HackEvent {
   custom_questions: CustomQuestion[]
   min_team_size: number
   max_team_size: number
+  /** Banner image. `/api/images/<id>` for an upload, or any URL. */
+  banner_url?: string
+  /**
+   * User ids of the event's judges. Carried so the UI can tell someone they
+   * may not enter *before* they click; the server enforces it either way.
+   */
+  judge_ids: string[]
 }
 
 export interface TeamMember {
@@ -155,6 +162,7 @@ export interface EventDraft {
   submissions_close?: string
   min_team_size?: number
   max_team_size?: number
+  banner_url?: string
   prizes?: Array<{ name: string; amount_usd: number; description?: string; track?: string | null }>
   custom_questions?: CustomQuestion[]
   is_featured?: boolean

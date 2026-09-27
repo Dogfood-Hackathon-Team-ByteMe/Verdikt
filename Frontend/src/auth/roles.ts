@@ -30,17 +30,18 @@ export function roleFor(user: AuthUser | null, eventId: string, eventTrackIds: s
 }
 
 /**
- * A coarse role across the whole platform, for chrome like the nav badge.
- * Never use it to gate anything event-specific — use roleFor() for that.
+ * `admin` is the ONLY status anyone holds platform-wide, so it is the only one
+ * worth printing next to a name. Everything else — organiser, judge,
+ * participant — is a relationship to one event, and labelling an account
+ * "PARTICIPANT" implies a rank the platform does not have: the same person may
+ * be running the event on the next page.
+ *
+ * Returns null for everyone else, and callers show nothing rather than
+ * inventing a role. To describe someone's standing in a particular event, use
+ * roleFor().
  */
-export function primaryRole(user: AuthUser | null): AuthRole {
-  if (!user) return 'visitor'
-  if (user.is_admin) return 'admin'
-  if (user.organiser_in.length > 0) return 'organizer'
-  if (user.judge_in.length > 0) return 'judge'
-  if (user.participating_in.length > 0) return 'participant'
-  // Signed in but not yet attached to an event.
-  return 'participant'
+export function globalBadgeFor(user: AuthUser | null): 'admin' | null {
+  return user?.is_admin ? 'admin' : null
 }
 
 /** Initials for the avatar, from the name when there is one, else the email. */

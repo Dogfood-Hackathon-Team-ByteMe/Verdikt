@@ -1,5 +1,5 @@
 Verdikt acceptance report
-Generated: 2026-09-26T20:37:44.446Z
+Generated: 2026-09-27T09:53:10.203Z
 Node: v24.18.0
 Tier claimed: 1
 
@@ -165,14 +165,28 @@ BUG-6: judges could read peer ballots via GET /api/scores
 BUG-7: tracks required an eventId to list
   PASS  GET /api/tracks works with no query string
 
+BUG-8: profile update was a mass-assignment hole
+  PASS  a user cannot promote themselves to admin
+  PASS  a user cannot grant themselves a role on an event
+  PASS  a user still cannot edit someone else
+  PASS  changing a password needs the current one
+  PASS  a password change with the current one succeeds and takes effect
+  PASS  the profile edit itself works
+
+roles are per event, not global
+  PASS  an organiser of one event can still compete in another
+  PASS  a competitor in one event can organise another
+  PASS  a judge of one event can compete in another
+  PASS  organising one event does not unlock another event's ballots
+
 error handling
   PASS  a 500 does not leak the internal exception message
   PASS  health check responds without touching the database
 
-17 passed, 0 failed, 17 total
+27 passed, 0 failed, 27 total
 
 
 ======================================================================
-TOTAL: 89 passed, 0 failed
+TOTAL: 99 passed, 0 failed
 RESULT: Tier 1 acceptance PASSED
 ======================================================================

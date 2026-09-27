@@ -7,7 +7,7 @@
  * and anyone can edit localStorage. It exists so the UI can be built against a
  * real state machine. Swapped out automatically once VITE_API_URL is set.
  */
-import type { AuthApi, AuthUser, LoginInput, RegisterInput } from './auth'
+import type { AuthApi, AuthUser, LoginInput, ProfileInput, RegisterInput } from './auth'
 import { ApiError } from './unwrap'
 
 const USERS_KEY = 'verdikt-mock-users'
@@ -113,6 +113,31 @@ export const mockAuthApi: AuthApi = {
     write(USERS_KEY, [...users, user])
     write(SESSION_KEY, user.id)
     return delay(publicUser(user))
+  },
+
+  async updateProfile(id: string, input: ProfileInput) {
+    const users = loadUsers()
+    const found = users.find((u) => u.id === id)
+    if (!found) throw new ApiError('User not found', 404)
+
+    if (input.email !== undefined) {
+      const normalised = input.email.trim().toLowerCase()
+      if (!normalised) throw new ApiError('Email cannot be empty', 400, 'email')
+      if (users.some((u) => u.id !== id && u.email.toLowerCase() === normalised)) {
+        throw new ApiError('That email is already in use', 409, 'email')
+      }
+      found.email = normalised
+    }
+    if (input.name !== undefined) {
+      if (!input.name.trim()) throw new ApiError('Name cannot be empty', 400, 'name')
+      found.name = input.name.trim()
+    }
+    if (input.password) found.password = input.password
+
+    // Roles and is_admin are intentionally not touched: the real backend
+    // allow-lists the same three fields.
+    write(USERS_KEY, users)
+    return delay(publicUser(found))
   },
 
   async login({ email, password }: LoginInput) {

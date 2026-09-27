@@ -49,6 +49,9 @@ const eventSchema = new mongoose.Schema({
     eventTags: [{ type: String }],
     minTeamSize: { type: Number, default: 1, min: 1 },
     maxTeamSize: { type: Number, default: 4, min: 1 },
+    // Banner across the top of the event. `/api/images/<id>`, or any URL.
+    bannerUrl: { type: String, trim: true, default: '' },
+
     isJudgeApplyOpen: { type: Boolean, default: false },
 
     // Marks the event the public landing page features. Only one should be

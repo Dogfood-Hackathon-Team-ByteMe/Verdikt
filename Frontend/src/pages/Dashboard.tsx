@@ -132,14 +132,19 @@ export default function Dashboard() {
         <Notifications />
 
         <div className="mt-12 flex flex-wrap gap-3">
-          <Button href="/gallery" variant="outline" icon="arrowRight">
-            Browse the gallery
+          <Button href="/projects" variant="outline" icon="arrowRight">
+            Browse the projects
           </Button>
-          {/* Organisers get here from the nav too; this is the shortcut for
-              someone who came straight to the dashboard. */}
-          {(user?.organiser_in.length ?? 0) > 0 && (
+          <Button href="/events" variant="outline" icon="arrowRight">
+            Browse events
+          </Button>
+          {/* Offered to everyone, not just people who already run something:
+              hosting is an action any account can take, and hiding this was
+              the only thing standing between a participant and their first
+              event. The label just reflects whether they have one yet. */}
+          {user && (
             <Button href="/organizer" variant="outline" icon="arrowRight">
-              Manage your events
+              {(user.organiser_in.length ?? 0) > 0 ? 'Manage your events' : 'Host an event'}
             </Button>
           )}
         </div>

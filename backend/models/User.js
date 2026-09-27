@@ -38,6 +38,14 @@ const userSchema = new mongoose.Schema(
 			},
 		],
 
+		// `/api/images/<id>` for an uploaded picture. A plain string, so an
+		// external URL also works for anyone who would rather host elsewhere.
+		avatarUrl: {
+			type: String,
+			trim: true,
+			default: "",
+		},
+
 		isAdmin: {
 			type: Boolean,
 			default: false,

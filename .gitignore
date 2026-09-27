@@ -1,7 +1,8 @@
 # Dependencies. ~200 MB across the two packages; the lockfiles are committed
 # instead, which is what makes an install reproducible.
 node_modules/
-
+run.py
+fixtures.json
 # Build output
 dist/
 dist-preview/

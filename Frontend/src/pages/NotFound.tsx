@@ -14,7 +14,7 @@ export default function NotFound() {
         </PageHeading>
         <div className="mt-8 flex flex-wrap gap-3">
           <Button href="/" icon="arrowRight">Event page</Button>
-          <Button href="/gallery" variant="outline">Browse the gallery</Button>
+          <Button href="/projects" variant="outline">Browse the projects</Button>
         </div>
       </Container>
     </AppShell>

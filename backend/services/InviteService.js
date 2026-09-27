@@ -5,6 +5,7 @@ import * as teamRepository from '../repositories/TeamRepository.js';
 import * as userRepository from '../repositories/UserRepository.js';
 import * as eventRepository from '../repositories/EventRepository.js';
 import * as notificationRepository from '../repositories/NotificationRepository.js';
+import { assertCanParticipate } from '../utils/eventRoles.js';
 
 export const createInvite = async (teamId, creatorId) => {
     if (!teamId) throw Object.assign(new Error('Team ID is required'), { statusCode: 400 });
@@ -54,7 +55,8 @@ export const getInviteByToken = async (token) => {
     return invite;
 };
 
-export const acceptInvite = async (token, userId) => {
+export const acceptInvite = async (token, requestingUser) => {
+    const userId = requestingUser._id;
     const invite = await getInviteByToken(token);
     const team = await teamRepository.findById(invite.teamId._id || invite.teamId);
 
@@ -65,9 +67,9 @@ export const acceptInvite = async (token, userId) => {
     // made accepting an invite fail 100% of the time.)
     const event = team.eventId ? await eventRepository.findById(team.eventId) : null;
 
-    if (event && event.judgeIds && event.judgeIds.some(id => id.toString() === userId.toString())) {
-        throw Object.assign(new Error("Judges cannot participate in the event they are judging"), { statusCode: 403 });
-    }
+    // An invite link is the easiest road into a team, so it gets the same
+    // staff/judge/organiser guard as every other one.
+    assertCanParticipate(requestingUser, event);
 
     // Dynamic maxTeamSize from the event
     const maxTeamSize = event ? event.maxTeamSize : 4;

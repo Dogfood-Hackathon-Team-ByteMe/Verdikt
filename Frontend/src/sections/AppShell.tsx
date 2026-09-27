@@ -11,10 +11,17 @@ import { Container, Logo, ThemeToggle, cn } from '../ui'
 import { useAuth } from '../auth/AuthProvider'
 import { AccountMenu } from './AccountMenu'
 
+/**
+ * "Organize" is a verb here, not a rank. Hosting an event is something any
+ * signed-in account can do, so the link is never gated on already organising
+ * one -- that was a chicken-and-egg which made the first event impossible to
+ * create from the UI, even though the API allowed it all along.
+ */
 const links = [
-  { to: '/gallery', label: 'Gallery' },
+  { to: '/projects', label: 'Projects' },
+  { to: '/events', label: 'Events' },
   { to: '/dashboard', label: 'Dashboard', authOnly: true },
-  { to: '/organizer', label: 'Organizer', organizerOnly: true },
+  { to: '/organizer', label: 'Organize', authOnly: true },
 ]
 
 export function AppShell({
@@ -38,7 +45,7 @@ export function AppShell({
             </Link>
             <nav aria-label="Main" className="hidden items-center gap-1 sm:flex">
               {links
-                .filter((l) => (!l.authOnly || user) && (!l.organizerOnly || (user && user.organiser_in.length > 0)))
+                .filter((l) => !l.authOnly || user)
                 .map((l) => (
                   <Link
                     key={l.to}

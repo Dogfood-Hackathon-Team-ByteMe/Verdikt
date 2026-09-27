@@ -2,6 +2,8 @@ import { runInTransaction } from '../utils/transaction.js';
 import * as teamRepository from "../repositories/TeamRepository.js";
 import * as userRepository from "../repositories/UserRepository.js";
 import * as eventRepository from "../repositories/EventRepository.js";
+import User from "../models/User.js";
+import { assertCanParticipate, isJudgeOf, isOrganiserOf } from "../utils/eventRoles.js";
 
 // ─── Private helpers ─────────────────────────────────────────────────────────
 
@@ -13,34 +15,6 @@ const _getEvent = async (eventId) => {
 	if (!event)
 		throw Object.assign(new Error("Event not found"), { statusCode: 404 });
 	return event;
-};
-
-/**
- * Return true if the user has an elevated role (organiser, judge, or admin)
- * with respect to the given event.
- * Judges are checked via their judgeIn tracks — we only have trackIds here,
- * so we check that the user judges at least one track belonging to this event.
- * Because Track documents are populated on the event, we compare by eventId
- * on each track (populated by EventRepository.findById → populate('tracks')).
- */
-const _isElevatedRoleForEvent = (user, event) => {
-	if (user.isAdmin) return true;
-
-	const eventId = event._id.toString();
-
-	const isOrganiser =
-		user.organiserIn &&
-		user.organiserIn.some((id) => id.toString() === eventId);
-	if (isOrganiser) return true;
-
-	// judgeIn holds trackIds. The event's tracks array is populated.
-	const eventTrackIds = (event.tracks || []).map((t) =>
-		(t._id || t).toString(),
-	);
-	const isJudge =
-		user.judgeIn &&
-		user.judgeIn.some((tid) => eventTrackIds.includes(tid.toString()));
-	return isJudge;
 };
 
 /**
@@ -63,19 +37,8 @@ export const createTeam = async (data, requestingUser) => {
 
 	const event = await _getEvent(data.eventId);
 
-	// Issue #18 — organisers, judges, and admins cannot create participant teams
-	if (event.judgeIds && event.judgeIds.some(id => id.toString() === requestingUser._id.toString())) {
-		throw Object.assign(new Error("Judges cannot participate in the event they are judging"), { statusCode: 403 });
-	}
-
-	if (_isElevatedRoleForEvent(requestingUser, event)) {
-		throw Object.assign(
-			new Error(
-				"Organisers, judges, and admins cannot create participant teams",
-			),
-			{ statusCode: 403 },
-		);
-	}
+	// Organisers, judges and admins cannot field a team of their own.
+	assertCanParticipate(requestingUser, event);
 
 	// Prevent creating a second team in the same event
 	const existing = await teamRepository.findByMember(requestingUser._id);
@@ -208,9 +171,13 @@ export const addMember = async (teamId, userId, requestingUser) => {
 
 	// Dynamic max from the event instead of hardcoded 4
 	const event = await _getEvent(team.eventId);
-	if (event.judgeIds && event.judgeIds.some(id => id.toString() === userId.toString())) {
-		throw Object.assign(new Error("Judges cannot participate in the event they are judging"), { statusCode: 403 });
-	}
+
+	// The guard is about the person being ADDED, not the leader doing the
+	// adding, so their document has to be loaded to see their roles.
+	const target = await User.findById(userId);
+	if (!target)
+		throw Object.assign(new Error("User not found"), { statusCode: 404 });
+	assertCanParticipate(target, event);
 
 	if (team.members.length >= event.maxTeamSize) {
 		throw Object.assign(
@@ -294,8 +261,8 @@ export const searchTeams = async (query, eventId, requestingUser) => {
 	const event = await _getEvent(eventId);
 	
 	const isAdmin = requestingUser.isAdmin;
-	const isOrg = requestingUser.organiserIn && requestingUser.organiserIn.some(id => id.toString() === eventId.toString());
-	const isJudge = event.judgeIds && event.judgeIds.some(id => id.toString() === requestingUser._id.toString());
+	const isOrg = isOrganiserOf(requestingUser, eventId);
+	const isJudge = isJudgeOf(requestingUser, event);
 	const isParticipant = requestingUser.participatingIn && requestingUser.participatingIn.some(id => id.toString() === eventId.toString());
 	
 	if (!isAdmin && !isOrg && !isJudge && !isParticipant) {

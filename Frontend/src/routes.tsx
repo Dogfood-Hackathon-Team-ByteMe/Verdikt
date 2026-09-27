@@ -10,12 +10,14 @@ import { RequireAuth } from './auth/RequireAuth'
 import AuthPage from './pages/AuthPage'
 import Dashboard from './pages/Dashboard'
 import EventEditor from './pages/EventEditor'
-import GalleryPage from './pages/GalleryPage'
+import EventsPage from './pages/EventsPage'
 import InvitePage from './pages/InvitePage'
 import Landing from './pages/Landing'
 import NotFound from './pages/NotFound'
 import OrganizerHome from './pages/OrganizerHome'
 import ProjectDetail from './pages/ProjectDetail'
+import ProfilePage from './pages/ProfilePage'
+import ProjectsPage from './pages/ProjectsPage'
 import SubmitProject from './pages/SubmitProject'
 import TeamPage from './pages/TeamPage'
 
@@ -24,7 +26,8 @@ export function AppRoutes() {
     <Routes>
       {/* Public */}
       <Route path="/" element={<Landing />} />
-      <Route path="/gallery" element={<GalleryPage />} />
+      <Route path="/projects" element={<ProjectsPage />} />
+      <Route path="/events" element={<EventsPage />} />
       <Route path="/projects/:id" element={<ProjectDetail />} />
       <Route path="/login" element={<AuthPage mode="signin" />} />
       <Route path="/signup" element={<AuthPage mode="signup" />} />
@@ -39,6 +42,14 @@ export function AppRoutes() {
         element={
           <RequireAuth>
             <Dashboard />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <RequireAuth>
+            <ProfilePage />
           </RequireAuth>
         }
       />
@@ -78,8 +89,9 @@ export function AppRoutes() {
         }
       />
 
-      {/* Old hash-era links people may have bookmarked. */}
+      {/* Old links people may have bookmarked. /gallery is now /projects. */}
       <Route path="/signin" element={<Navigate to="/login" replace />} />
+      <Route path="/gallery" element={<Navigate to="/projects" replace />} />
 
       <Route path="*" element={<NotFound />} />
     </Routes>

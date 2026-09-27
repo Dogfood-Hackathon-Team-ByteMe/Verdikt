@@ -48,8 +48,8 @@ export default function ProjectDetail() {
           <PageHeading label="Not found" title="No project" tail="here.">
             It may still be a draft, or it may have been withdrawn.
           </PageHeading>
-          <Button className="mt-8" href="/gallery" icon="arrowRight">
-            Back to the gallery
+          <Button className="mt-8" href="/projects" icon="arrowRight">
+            Back to the projects
           </Button>
         </Container>
       </AppShell>
@@ -182,8 +182,8 @@ export default function ProjectDetail() {
           </aside>
         </div>
 
-        <Button href="/gallery" variant="outline" className="mt-12">
-          Back to the gallery
+        <Button href="/projects" variant="outline" className="mt-12">
+          Back to the projects
         </Button>
       </Container>
     </AppShell>

@@ -66,6 +66,12 @@ export interface VerdiktApi {
   updateTrack(id: string, input: { name?: string; description?: string }): Promise<Track>
   deleteTrack(id: string): Promise<void>
 
+  /**
+   * Upload an image and get back the URL to store on a record.
+   * The file is sent as the raw body; the backend caps it at 2 MB.
+   */
+  uploadImage(file: File): Promise<string>
+
   // --- Notifications ------------------------------------------------------
   listNotifications(): Promise<Notification[]>
   markNotificationRead(id: string): Promise<void>

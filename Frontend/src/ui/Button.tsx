@@ -17,7 +17,11 @@ export type ButtonSize = 'sm' | 'md' | 'lg'
 const variants: Record<ButtonVariant, string> = {
   primary: 'bg-yellow text-on-bright ring-2 ring-ink hover:bg-yellow-deep hover:shadow-[4px_4px_0_var(--color-ink)]',
   blue: 'bg-blue text-white ring-2 ring-ink hover:bg-blue-deep hover:shadow-[4px_4px_0_var(--color-ink)]',
-  dark: 'bg-slab text-slab-fg ring-2 ring-ink hover:bg-ink-2 hover:text-on-bright hover:shadow-[4px_4px_0_var(--color-yellow)]',
+  // No colour swap on hover: `ink-2` is a DARK ink in the light theme and a
+  // LIGHT one in the dark theme, so any fixed hover text colour is unreadable
+  // in one of them (this used to go black-on-black in light mode). Brightness
+  // lifts the whole button, so the label keeps its contrast either way.
+  dark: 'bg-slab text-slab-fg ring-2 ring-ink hover:brightness-125 hover:shadow-[4px_4px_0_var(--color-yellow)]',
   outline: 'bg-paper text-ink ring-2 ring-ink hover:bg-fog hover:shadow-[4px_4px_0_var(--color-ink)]',
   ghost: 'text-ink hover:bg-fog',
 }

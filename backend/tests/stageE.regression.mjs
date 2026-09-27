@@ -6,7 +6,7 @@
  */
 import mongoose from 'mongoose';
 import { createClient, resetDatabase, startTestServer, stopTestServer } from './harness.mjs';
-import { createEvent, createTeam, createTrack, makeJudge, registerUser, seedScenario } from './helpers.mjs';
+import { PASSWORD, createEvent, createTeam, createTrack, makeJudge, registerUser, seedScenario } from './helpers.mjs';
 import { describe, expect, it, run } from './runner.mjs';
 
 describe('BUG-1: routes referencing an unimported requireAuth', () => {
@@ -156,6 +156,148 @@ describe('BUG-7: tracks required an eventId to list', () => {
         const res = await createClient().get('/api/tracks');
         expect(res.status).toBe(200);
         expect(res.body.data).toHaveLength(1);
+    });
+});
+
+describe('BUG-8: profile update was a mass-assignment hole', () => {
+    it('a user cannot promote themselves to admin', async () => {
+        const ada = await registerUser('ada@verdikt.dev');
+        const res = await ada.client.put(`/api/users/${ada.id}`, { name: 'Ada', isAdmin: true });
+        expect(res.status).toBe(200);
+        const me = await ada.client.get('/api/auth/me');
+        expect(me.body.data.isAdmin).toBe(false);
+        expect(me.body.data.name).toBe('Ada');
+    });
+
+    it('a user cannot grant themselves a role on an event', async () => {
+        const host = await registerUser('host@verdikt.dev');
+        const event = await createEvent(host.client);
+        const ada = await registerUser('ada@verdikt.dev');
+
+        await ada.client.put(`/api/users/${ada.id}`, {
+            organiserIn: [event._id],
+            judgeIn: [event._id],
+            participatingIn: [event._id],
+        });
+
+        const me = await ada.client.get('/api/auth/me');
+        expect(me.body.data.organiserIn).toHaveLength(0);
+        expect(me.body.data.judgeIn).toHaveLength(0);
+        expect(me.body.data.participatingIn).toHaveLength(0);
+    });
+
+    it('a user still cannot edit someone else', async () => {
+        const ada = await registerUser('ada@verdikt.dev');
+        const bob = await registerUser('bob@verdikt.dev');
+        expect((await ada.client.put(`/api/users/${bob.id}`, { name: 'Hacked' })).status).toBe(403);
+    });
+
+    it('changing a password needs the current one', async () => {
+        const ada = await registerUser('ada@verdikt.dev');
+
+        const noProof = await ada.client.put(`/api/users/${ada.id}`, { password: 'brand-new-secret' });
+        expect(noProof.status).toBe(400);
+
+        const wrongProof = await ada.client.put(`/api/users/${ada.id}`, {
+            password: 'brand-new-secret',
+            currentPassword: 'not-it',
+        });
+        expect(wrongProof.status).toBe(403);
+
+        // The old password still works, so nothing was changed by either try.
+        const check = createClient();
+        expect((await check.post('/api/auth/login', { email: 'ada@verdikt.dev', password: PASSWORD })).status).toBe(200);
+    });
+
+    it('a password change with the current one succeeds and takes effect', async () => {
+        const ada = await registerUser('ada@verdikt.dev');
+        const res = await ada.client.put(`/api/users/${ada.id}`, {
+            password: 'brand-new-secret',
+            currentPassword: PASSWORD,
+        });
+        expect(res.status).toBe(200);
+
+        const fresh = createClient();
+        expect((await fresh.post('/api/auth/login', { email: 'ada@verdikt.dev', password: PASSWORD })).status).toBe(401);
+        expect((await fresh.post('/api/auth/login', { email: 'ada@verdikt.dev', password: 'brand-new-secret' })).status).toBe(200);
+    });
+
+    it('the profile edit itself works', async () => {
+        const ada = await registerUser('ada@verdikt.dev');
+        const res = await ada.client.put(`/api/users/${ada.id}`, { name: 'Ada Okafor' });
+        expect(res.status).toBe(200);
+        expect((await ada.client.get('/api/auth/me')).body.data.name).toBe('Ada Okafor');
+    });
+});
+
+describe('roles are per event, not global', () => {
+    /**
+     * The platform has exactly one global role: admin. Everything else is a
+     * relationship to one event, so the same person can run their own
+     * hackathon and compete in somebody else's on the same account.
+     */
+    it('an organiser of one event can still compete in another', async () => {
+        const mira = await registerUser('mira@verdikt.dev');
+        const mine = await createEvent(mira.client, { name: 'My Event' });
+
+        // Barred from her own event...
+        const own = await mira.client.post('/api/teams', { name: 'Self Deal', eventId: mine._id });
+        expect(own.status).toBe(403);
+
+        // ...but an ordinary entrant in someone else's.
+        const someoneElse = await registerUser('rafa@verdikt.dev');
+        const theirs = await createEvent(someoneElse.client, { name: 'Their Event' });
+        const entry = await mira.client.post('/api/teams', { name: 'Late Entry', eventId: theirs._id });
+        expect(entry.status).toBe(201);
+    });
+
+    it('a competitor in one event can organise another', async () => {
+        const ada = await registerUser('ada@verdikt.dev');
+        const host = await registerUser('host@verdikt.dev');
+        const theirs = await createEvent(host.client, { name: 'Their Event' });
+        expect((await ada.client.post('/api/teams', { name: 'Ada Team', eventId: theirs._id })).status).toBe(201);
+
+        // Competing somewhere does not stop her running her own.
+        const hers = await createEvent(ada.client, { name: 'Ada Event' });
+        expect(hers.organiserId).toBe(ada.id);
+
+        // And she is barred from her own, while her other team survives.
+        expect((await ada.client.post('/api/teams', { name: 'Nope', eventId: hers._id })).status).toBe(403);
+    });
+
+    it('a judge of one event can compete in another', async () => {
+        const { event, track } = await seedScenario();
+        const judge = await registerUser('judgea@verdikt.dev');
+        await makeJudge(judge.id, event._id, track._id);
+
+        // Barred from the event they judge.
+        expect((await judge.client.post('/api/teams', { name: 'Ballot Stuffer', eventId: event._id })).status).toBe(403);
+
+        const other = await registerUser('other@verdikt.dev');
+        const elsewhere = await createEvent(other.client, { name: 'Elsewhere' });
+        expect((await judge.client.post('/api/teams', { name: 'Fine Here', eventId: elsewhere._id })).status).toBe(201);
+    });
+
+    it('organising one event does not unlock another event\'s ballots', async () => {
+        // The score list treated "organises something" as a rank rather than a
+        // relationship, so an organiser of any event read every judge's
+        // ballots for an event they had nothing to do with.
+        const { event, track, project, participant } = await seedScenario();
+        await participant.client.post(`/api/projects/${project._id}/submit`);
+        const judge = await registerUser('judgea@verdikt.dev');
+        await makeJudge(judge.id, event._id, track._id);
+        await judge.client.post('/api/scores', { projectId: project._id, scores: { technical: 8 } });
+
+        const outsider = await registerUser('outsider@verdikt.dev');
+        await createEvent(outsider.client, { name: 'Unrelated Event' });
+
+        const scoped = await outsider.client.get(`/api/scores?eventId=${event._id}`);
+        expect(scoped.status).toBe(403);
+
+        // Unscoped, they see the ballots of the events they actually organise,
+        // which is none.
+        const unscoped = await outsider.client.get('/api/scores');
+        expect(unscoped.body.data).toHaveLength(0);
     });
 });
 

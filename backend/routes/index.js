@@ -12,6 +12,7 @@ import inviteRoutes from "./inviteRoutes.js";
 import notificationRoutes from "./notificationRoutes.js";
 import joinRequestRoutes from "./joinRequestRoutes.js";
 import judgeApplicationRoutes from "./judgeApplicationRoutes.js";
+import imageRoutes from "./imageRoutes.js";
 import { authenticate } from "../middlewares/authMiddleware.js";
 import * as scoreController from "../controllers/ScoreController.js";
 import Score from "../models/Score.js";
@@ -23,6 +24,7 @@ const router = express.Router();
 router.use("/auth", authRoutes);
 
 // Entity CRUD routes
+router.use("/images", imageRoutes);
 router.use("/users", userRoutes);
 router.use("/events", eventRoutes);
 router.use("/tracks", trackRoutes);

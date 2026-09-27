@@ -1,6 +1,23 @@
 @import 'tailwindcss';
 
 /*
+ * `dark:` utilities, matching how this project actually switches theme: the OS
+ * preference wins unless the user pinned light, and an explicit
+ * data-theme="dark" always wins. Tailwind's stock dark variant only knows one
+ * of those, so it is defined here instead.
+ */
+@custom-variant dark {
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme='light']), :root:not([data-theme='light']) *) {
+      @slot;
+    }
+  }
+  &:where(:root[data-theme='dark'], :root[data-theme='dark'] *) {
+    @slot;
+  }
+}
+
+/*
  * Verdikt design tokens — "developer graph-paper" identity.
  * Source of truth for colour, type, radius and motion across the whole frontend.
  * Cream paper with a faint grid, primary-colour blocks, a yellow action colour

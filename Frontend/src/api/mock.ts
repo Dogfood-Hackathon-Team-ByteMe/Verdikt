@@ -46,6 +46,8 @@ export const mockEvent: HackEvent = {
   ],
   min_team_size: 1,
   max_team_size: 4,
+  // No judges in the sample data, so nothing is barred from entering it.
+  judge_ids: [],
 }
 
 /** Shorthand for the sample rows below. */
@@ -335,6 +337,15 @@ export const mockApi: VerdiktApi = {
     mockEvent.tracks = mockEvent.tracks.filter((t) => t.id !== id)
     return delay(undefined)
   },
+
+  // No server behind the mock, so the "upload" is just a data URL.
+  uploadImage: (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result))
+      reader.onerror = () => reject(new Error('Could not read that file'))
+      reader.readAsDataURL(file)
+    }),
 
   listNotifications: () => delay(notifications),
   markNotificationRead: (id) => {

@@ -19,10 +19,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api'
 import type { CustomQuestion, HackEvent, Project, ProjectDraft } from '../api/types'
+import { useAuth } from '../auth/AuthProvider'
 import { useApi } from '../hooks/useApi'
 import { useCountdown } from '../hooks/useCountdown'
 import { AppShell, PageHeading } from '../sections/AppShell'
-import { Alert, Badge, Button, Card, Container, Field, Icon } from '../ui'
+import { Alert, Badge, Button, Card, Container, Field, Icon, ImagePicker } from '../ui'
 
 /** The editable shape, flat, so the form is one state object. */
 interface FormState {
@@ -76,8 +77,26 @@ export default function SubmitProject() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
 
+  const { user } = useAuth()
+
   const project = useApi(() => api.getProject(id), [id])
-  const event = useApi(() => api.getFeaturedEvent())
+
+  // The project's OWN event, not the featured one. They are the same when
+  // there is a single event, but once there are several the featured event's
+  // deadline and tracks are simply the wrong ones -- which locked the form on
+  // a project whose own window was still open.
+  const event = useApi(
+    () => (project.data?.event_id ? api.getEvent(project.data.event_id) : api.getFeaturedEvent()),
+    [project.data?.event_id],
+  )
+
+  // Needed only to tell the leader apart from the rest of the team: the
+  // backend lets any member edit, but only the leader delete.
+  const team = useApi(
+    () => (project.data?.team_id ? api.getTeam(project.data.team_id) : Promise.resolve(null)),
+    [project.data?.team_id],
+  )
+  const isLeader = Boolean(user && team.data && team.data.leader_id === user.id)
 
   const [form, setForm] = useState<FormState | null>(null)
   const [saving, setSaving] = useState(false)
@@ -303,9 +322,16 @@ export default function SubmitProject() {
             </FormSection>
 
             <FormSection title="Media">
+              <ImagePicker
+                label="Thumbnail"
+                hint="The gallery card image. PNG, JPEG, WEBP or GIF, up to 2 MB."
+                value={form.thumbnail_url}
+                disabled={readOnly}
+                onChange={(url) => set('thumbnail_url', url)}
+              />
               <Field
-                label="Thumbnail URL"
-                hint="The gallery card image."
+                label="...or a thumbnail URL"
+                hint="Point at an image you already host, instead of uploading."
                 placeholder="https://example.com/thumb.png"
                 value={form.thumbnail_url}
                 disabled={readOnly}
@@ -387,7 +413,16 @@ export default function SubmitProject() {
                 Drafts are private to your team and the organizer. Submitted entries appear in the public gallery.
               </p>
 
-              {!readOnly && (
+              {/* Deleting is the leader's call alone -- the server refuses
+                  anyone else -- so the rest of the team is told, not offered a
+                  button that will 403. */}
+              {!readOnly && !isLeader && team.data && (
+                <p className="mt-5 border-t border-line pt-5 font-mono text-[0.72rem] leading-relaxed text-subtle">
+                  Any member can edit this entry. Only the team leader can delete it.
+                </p>
+              )}
+
+              {!readOnly && isLeader && (
                 <div className="mt-5 border-t border-line pt-5">
                   {confirmDelete ? (
                     <div className="flex flex-col gap-2">

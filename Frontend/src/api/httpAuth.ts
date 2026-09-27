@@ -16,7 +16,7 @@
  * must send CORS `credentials: true` with an explicit origin, or the browser
  * silently drops the cookie and every request looks signed-out.
  */
-import type { AuthApi, AuthUser, LoginInput, RegisterInput } from './auth'
+import type { AuthApi, AuthUser, LoginInput, ProfileInput, RegisterInput } from './auth'
 import { ApiError, unwrap } from './unwrap'
 
 // Change these here only if the backend publishes different paths.
@@ -25,6 +25,7 @@ export const authRoutes = {
   login: '/api/auth/login',
   logout: '/api/auth/logout',
   me: '/api/auth/me',
+  user: (id: string) => `/api/users/${encodeURIComponent(id)}`,
 }
 
 /** The Mongo user document, as the backend serialises it. */
@@ -34,6 +35,7 @@ interface UserDoc {
   email: string
   name?: string
   isAdmin?: boolean
+  avatarUrl?: string
   participatingIn?: Array<string | { _id: string }>
   judgeIn?: Array<string | { _id: string }>
   organiserIn?: Array<string | { _id: string }>
@@ -53,6 +55,7 @@ export function toAuthUser(doc: UserDoc): AuthUser {
     email: doc.email,
     name: doc.name,
     is_admin: doc.isAdmin ?? false,
+    avatar_url: doc.avatarUrl || undefined,
     participating_in: ids(doc.participatingIn),
     judge_in: ids(doc.judgeIn),
     organiser_in: ids(doc.organiserIn),
@@ -62,7 +65,7 @@ export function toAuthUser(doc: UserDoc): AuthUser {
 export function createHttpAuthApi(baseUrl: string): AuthApi {
   const base = baseUrl.replace(/\/$/, '')
 
-  const send = (path: string, method: 'GET' | 'POST', body?: unknown) =>
+  const send = (path: string, method: 'GET' | 'POST' | 'PUT', body?: unknown) =>
     fetch(base + path, {
       method,
       // Carries the httpOnly session cookie. Requires CORS credentials:true.
@@ -82,6 +85,18 @@ export function createHttpAuthApi(baseUrl: string): AuthApi {
 
     async logout() {
       await unwrap<void>(await send(authRoutes.logout, 'POST'))
+    },
+
+    async updateProfile(id: string, input: ProfileInput) {
+      // snake_case in, camelCase out — the same one-place translation the rest
+      // of the client does.
+      const body: Record<string, unknown> = {}
+      if (input.name !== undefined) body.name = input.name
+      if (input.email !== undefined) body.email = input.email
+      if (input.avatar_url !== undefined) body.avatarUrl = input.avatar_url
+      if (input.password) body.password = input.password
+      if (input.current_password) body.currentPassword = input.current_password
+      return toAuthUser(await unwrap<UserDoc>(await send(authRoutes.user(id), 'PUT', body)))
     },
 
     async me() {

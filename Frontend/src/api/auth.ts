@@ -24,6 +24,8 @@ export interface AuthUser {
   email: string
   name?: string
   is_admin: boolean
+  /** Profile picture. `/api/images/<id>` for an upload, or any URL. */
+  avatar_url?: string
   /** Event ids this user competes in. */
   participating_in: string[]
   /** Track ids this user judges (tracks, not events — see roles.ts). */
@@ -52,4 +54,20 @@ export interface AuthApi {
   logout(): Promise<void>
   /** The current user, or null when there is no valid session. Never throws on 401. */
   me(): Promise<AuthUser | null>
+  /**
+   * Edit your own profile. Only name, email and password are editable --
+   * roles and admin are server-controlled and the backend ignores them.
+   */
+  updateProfile(id: string, input: ProfileInput): Promise<AuthUser>
+}
+
+/** The editable part of a profile. Omitted fields are left alone. */
+export interface ProfileInput {
+  name?: string
+  email?: string
+  avatar_url?: string
+  /** A new password. Requires `current_password` alongside it. */
+  password?: string
+  /** Proof you know the existing password; required to change it. */
+  current_password?: string
 }

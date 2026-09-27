@@ -8,6 +8,8 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "seed": "node scripts/seed.js",
+    "import-fixtures": "node scripts/import-fixtures.js",
+    "dogfood-config": "node scripts/dogfood-config.js",
     "test": "node tests/all.mjs",
     "test:auth": "node tests/stageB.auth.mjs",
     "test:t1": "node tests/stageC.t1.mjs",

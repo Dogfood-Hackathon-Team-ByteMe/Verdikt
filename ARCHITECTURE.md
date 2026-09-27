@@ -76,8 +76,24 @@ rather than one role field:
 - `participatingIn: [Event]`
 - `isAdmin: Boolean` — global override, not settable over HTTP
 
-`Session.role` stores a single coarse value for UI chrome only. Anything that
-gates access re-derives the answer for the specific event in the service layer.
+`isAdmin` is the only thing anyone is *everywhere*. Every other word is a
+relationship to one event, so running your own hackathon and entering someone
+else's are the same account doing two unrelated things.
+
+`Session.role` stores a single coarse value for UI chrome only -- it is derived
+from those arrays and says nothing about the event in front of you, so it picks
+a menu and never a permission. Anything that gates access asks
+`utils/eventRoles.js` about the specific event instead. That module is the one
+place the rules live:
+
+- `isOrganiserOf(user, eventId)` / `isJudgeOf(user, event)` -- per-event, and
+  `isJudgeOf` accepts both shapes a judge comes in: `event.judgeIds` holds user
+  ids, `user.judgeIn` holds track ids.
+- `assertCanParticipate(user, event)` -- **you cannot compete in an event you
+  run or judge, and admins compete nowhere.** Every road into a team goes
+  through it (invite link, join request, team creation, direct add, accepting a
+  request), because a check on one route protects only that route.
+
 Note the spelling split, which is easy to trip over: the Session enum uses
 American `organizer`, the User field is British `organiserIn`.
 

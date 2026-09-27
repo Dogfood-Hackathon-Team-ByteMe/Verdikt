@@ -130,12 +130,19 @@ export const createProject = async (data, requestingUser) => {
 		throw Object.assign(new Error("This team already has a project"), { statusCode: 409 });
 	}
 
-	return await projectRepository.create({
+	const project = await projectRepository.create({
 		...pickWritable(data),
 		teamId: data.teamId,
 		eventId,
 		status: "draft",
 	});
+
+	// Team.projectId is the denormalised pointer back. The seeder set it but
+	// this path never did, so a project started in the UI left the team looking
+	// like it had none.
+	await Team.findByIdAndUpdate(data.teamId, { projectId: project._id });
+
+	return project;
 };
 
 export const getProjectById = async (id, requestingUser) => {
@@ -228,17 +235,32 @@ export const deleteProject = async (id, requestingUser) => {
 
 	if (!requestingUser.isAdmin) {
 		await assertOpen(project.eventId, "delete this project");
+
 		const members = project.teamId && project.teamId.members;
-		if (members && members.length > 0) {
-			// The first member is the team leader by convention.
-			const leaderId = members[0]._id ? members[0]._id.toString() : members[0].toString();
-			if (leaderId !== requestingUser._id.toString()) {
-				throw forbidden("Only the team leader can delete this project");
-			}
+		// No resolvable team means no leader to compare against. Previously the
+		// check was skipped in that case, which let any signed-in user delete
+		// an orphaned project; refuse instead.
+		if (!members || members.length === 0) {
+			throw forbidden("Only the team leader can delete this project");
+		}
+
+		// The first member is the team leader by convention.
+		const leaderId = members[0]._id ? members[0]._id.toString() : members[0].toString();
+		if (leaderId !== requestingUser._id.toString()) {
+			throw forbidden("Only the team leader can delete this project");
 		}
 	}
 
-	return await projectRepository.deleteById(id);
+	const deleted = await projectRepository.deleteById(id);
+
+	// Drop the team's pointer, or it dangles at a document that is gone and the
+	// team can never be shown as "no project yet".
+	if (project.teamId) {
+		const teamId = project.teamId._id ?? project.teamId;
+		await Team.findByIdAndUpdate(teamId, { projectId: null });
+	}
+
+	return deleted;
 };
 
 /**

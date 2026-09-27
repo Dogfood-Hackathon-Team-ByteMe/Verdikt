@@ -1,4 +1,5 @@
 import * as scoreService from "../services/ScoreService.js";
+import { idsOf } from "../utils/eventRoles.js";
 
 export const create = async (req, res, next) => {
 	try {
@@ -36,13 +37,25 @@ export const getFiltered = async (req, res, next) => {
 		if (req.query.projectId) filter.projectId = req.query.projectId;
 		if (req.query.eventId) filter.eventId = req.query.eventId;
 
-		const isOrganizer = req.user.organiserIn && req.user.organiserIn.length > 0;
-		const isJudge = req.user.judgeIn && req.user.judgeIn.length > 0;
 		const isAdmin = req.user.isAdmin;
+		const organiserIn = idsOf(req.user.organiserIn);
+		const isJudgeSomewhere = (req.user.judgeIn || []).length > 0;
 
-		// Nobody without an elevated role has any business reading ballots.
-		if (!isJudge && !isOrganizer && !isAdmin) {
+		// "Organiser" is per event, not a rank. Organising one hackathon must
+		// not unlock another's ballots, so the claim is checked against the
+		// event actually being asked for. With no eventId the request is
+		// narrowed to the events this user organises, rather than all of them.
+		const isOrganizer = req.query.eventId
+			? organiserIn.includes(req.query.eventId.toString())
+			: organiserIn.length > 0;
+
+		// Nobody without a stake in the event has any business reading ballots.
+		if (!isJudgeSomewhere && !isOrganizer && !isAdmin) {
 			return res.status(403).json({ success: false, error: "Forbidden", message: "Only judges and organizers can access scores" });
+		}
+
+		if (isOrganizer && !isAdmin && !req.query.eventId) {
+			filter.eventId = { $in: organiserIn };
 		}
 
 		if (req.query.judge) {

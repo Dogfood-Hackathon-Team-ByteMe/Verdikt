@@ -21,14 +21,87 @@ function useDebounced<T>(value: T, ms = 200) {
 }
 
 
-export function Gallery({ tracks }: { tracks: Track[] }) {
+/**
+ * Entries cycle through the four block colours rather than all wearing one.
+ * A wall of identical cards reads as a table; four rotating colours let the eye
+ * find its place in the grid, and they are the same four the rest of the kit
+ * uses, so nothing new is invented here.
+ *
+ * `dark:brightness-125` lifts the three dark-backed tones off a near-black
+ * page. Yellow is already bright enough and would blow out, so it is the one
+ * tone left alone — its contrast comes from a blue arrow instead of a white one.
+ */
+type EntryTone = 'blue' | 'yellow' | 'red' | 'green'
+
+const TONE_CYCLE: EntryTone[] = ['blue', 'yellow', 'red', 'green']
+
+const TONE_STYLES: Record<EntryTone, {
+  card: string
+  chip: string
+  meta: string
+  body: string
+  tag: string
+  bubble: string
+  liveDot: string
+}> = {
+  blue: {
+    card: 'dark:brightness-125',
+    chip: 'bg-white/20 text-white',
+    meta: 'text-white/75',
+    body: 'text-white/85',
+    tag: 'bg-white/15 text-white',
+    bubble: 'bg-white text-blue',
+    liveDot: 'bg-white',
+  },
+  yellow: {
+    card: '',
+    chip: 'bg-on-bright/12 text-on-bright',
+    meta: 'text-on-bright/70',
+    body: 'text-on-bright/85',
+    tag: 'bg-on-bright/12 text-on-bright',
+    bubble: 'bg-blue text-white',
+    liveDot: 'bg-green',
+  },
+  red: {
+    card: 'dark:brightness-125',
+    chip: 'bg-white/20 text-white',
+    meta: 'text-white/75',
+    body: 'text-white/85',
+    tag: 'bg-white/15 text-white',
+    bubble: 'bg-white text-red',
+    liveDot: 'bg-white',
+  },
+  green: {
+    card: 'dark:brightness-125',
+    chip: 'bg-white/20 text-white',
+    meta: 'text-white/75',
+    body: 'text-white/85',
+    tag: 'bg-white/15 text-white',
+    bubble: 'bg-white text-green',
+    liveDot: 'bg-white',
+  },
+}
+
+export function Gallery({ tracks, eventId }: { tracks: Track[]; eventId?: string }) {
   const [q, setQ] = useState('')
   const [track, setTrack] = useState('')
   const dq = useDebounced(q)
-  const { data, loading, error } = useApi(() => api.listProjects({ q: dq, track: track || undefined }), [dq, track])
-  const all = useApi(() => api.listProjects())
+  // `eventId` narrows the list to one event, which is how /projects?event=<id>
+  // arrives from the Events tab. Undefined means every event.
+  const { data, loading, error } = useApi(
+    () => api.listProjects({ q: dq, track: track || undefined, event_id: eventId }),
+    [dq, track, eventId],
+  )
+  const all = useApi(() => api.listProjects({ event_id: eventId }), [eventId])
   const [open, setOpen] = useState<Project | null>(null)
-  const trackName = (id: string) => tracks.find((t) => t.id === id)?.name ?? id
+  /**
+   * The track's name. `tracks` only covers the event whose chips are on
+   * screen, so a project from another event would previously render its raw
+   * Mongo id -- the populated `track_name` off the project itself is the
+   * reliable source, and the lookup is only a fallback.
+   */
+  const trackName = (p: { track: string; track_name?: string }) =>
+    p.track_name || tracks.find((t) => t.id === p.track)?.name || 'Track'
   const countFor = (id: string) => (all.data ?? []).filter((p) => !id || p.track === id).length
 
   return (
@@ -53,29 +126,32 @@ export function Gallery({ tracks }: { tracks: Track[] }) {
       </Reveal>
 
       <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {(data ?? []).map((p, i) => (
+        {(data ?? []).map((p, i) => {
+          const tone = TONE_CYCLE[i % TONE_CYCLE.length]
+          const t = TONE_STYLES[tone]
+          return (
           <li key={p.id} className="animate-[rise_0.6s_var(--ease-out-soft)_both]" style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}>
-            <Card tone="paper" tilt className="h-full ring-1 ring-line">
+            <Card tone={tone} tilt className={cn('h-full', t.card)}>
               <button type="button" onClick={() => setOpen(p)} className="flex h-full w-full flex-col p-5 text-left">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="rounded-full bg-blue-mist px-2.5 py-1 text-[0.72rem] text-blue-ink">{trackName(p.track)}</span>
-                  <span className={cn('flex items-center gap-1.5 font-mono text-[0.64rem] uppercase tracking-[0.1em]', p.submitted_at ? 'text-success' : 'text-subtle')}>
-                    <span className={cn('h-1.5 w-1.5 rounded-full', p.submitted_at ? 'bg-success' : 'bg-subtle')} />
+                  <span className={cn('rounded-full px-2.5 py-1 text-[0.72rem]', t.chip)}>{trackName(p)}</span>
+                  <span className={cn('flex items-center gap-1.5 font-mono text-[0.64rem] uppercase tracking-[0.1em]', t.meta)}>
+                    <span className={cn('h-1.5 w-1.5 rounded-full', p.submitted_at ? t.liveDot : 'opacity-50 ' + t.liveDot)} />
                     {p.submitted_at ? 'Submitted' : 'Draft'}
                   </span>
                 </div>
                 <h3 className="mt-6 text-[1.45rem] font-medium leading-tight tracking-[-0.04em]">{p.title}</h3>
-                <div className="text-sm text-muted">{p.team}</div>
-                <p className="mt-3 flex-1 text-sm text-muted">{p.summary}</p>
+                <div className={cn('text-sm', t.meta)}>{p.team}</div>
+                <p className={cn('mt-3 flex-1 text-sm', t.body)}>{p.summary}</p>
                 <div className="mt-5 flex items-center justify-between gap-2">
                   <div className="flex flex-wrap gap-1">
-                    {p.tags?.map((t) => (
-                      <span key={t} className="rounded-full bg-fog px-2 py-0.5 font-mono text-[0.64rem]">
-                        {t}
+                    {p.tags?.map((tag) => (
+                      <span key={tag} className={cn('rounded-full px-2 py-0.5 font-mono text-[0.64rem]', t.tag)}>
+                        {tag}
                       </span>
                     ))}
                   </div>
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-ink text-yellow transition-transform duration-500 ease-spring group-hover/tilt:rotate-45" aria-hidden="true">
+                  <span className={cn('grid h-8 w-8 shrink-0 place-items-center rounded-full transition-transform duration-500 ease-spring group-hover/tilt:rotate-45', t.bubble)} aria-hidden="true">
                     <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
                       <path d="M7 17L17 7M9 7h8v8" />
                     </svg>
@@ -84,7 +160,8 @@ export function Gallery({ tracks }: { tracks: Track[] }) {
               </button>
             </Card>
           </li>
-        ))}
+          )
+        })}
       </ul>
       {data && data.length === 0 && (
         <div className="mx-auto mt-10 max-w-md rounded-card bg-fog p-8 text-center">
@@ -98,7 +175,7 @@ export function Gallery({ tracks }: { tracks: Track[] }) {
       <Dialog open={!!open} onClose={() => setOpen(null)} label={open?.title ?? 'Project'}>
         {open && (
           <div className="p-6 sm:p-8">
-            <span className="rounded-full bg-blue-mist px-2.5 py-1 text-[0.72rem] text-blue-ink">{trackName(open.track)}</span>
+            <span className="rounded-full bg-blue-mist px-2.5 py-1 text-[0.72rem] text-blue-ink">{trackName(open)}</span>
             <h3 className="mt-5 text-[2.2rem] font-medium leading-none tracking-[-0.05em]">{open.title}</h3>
             <div className="mt-2 text-muted">by {open.team}</div>
             <p className="mt-5 text-[1.02rem]">{open.summary}</p>

@@ -11,7 +11,7 @@ import { api } from '../api'
 import { useAuth } from '../auth/AuthProvider'
 import { useApi } from '../hooks/useApi'
 import { AppShell, PageHeading } from '../sections/AppShell'
-import { Alert, Badge, Button, Card, Container, Field } from '../ui'
+import { Alert, BANNER_ASPECT, Badge, Button, Card, Container, Field, cn } from '../ui'
 
 /** Two days out, as a sensible default deadline for a new event. */
 const defaultClose = () => {
@@ -123,7 +123,22 @@ export default function OrganizerHome() {
               const closed = new Date(e.submissions_close) < new Date()
               return (
                 <li key={e.id}>
-                  <Card tone="paper" interactive className="h-full p-6">
+                  <Card tone="paper" interactive className="flex h-full flex-col overflow-hidden p-0">
+                    {/* Same ratio as the editor preview and the public event
+                        card, so one banner is framed once and crops the same
+                        everywhere it appears. */}
+                    {e.banner_url ? (
+                      <img
+                        src={e.banner_url}
+                        alt=""
+                        className={cn(BANNER_ASPECT, 'w-full object-cover object-center')}
+                      />
+                    ) : (
+                      <div className={cn(BANNER_ASPECT, 'grid w-full place-items-center bg-fog')}>
+                        <span className="label-mono text-subtle">No banner</span>
+                      </div>
+                    )}
+                    <div className="flex flex-1 flex-col p-6">
                     <div className="flex items-start justify-between gap-3">
                       <h3 className="headline text-[1.4rem]">{e.name}</h3>
                       <Badge variant={closed ? 'outline' : 'green'}>{closed ? 'closed' : 'open'}</Badge>
@@ -143,9 +158,10 @@ export default function OrganizerHome() {
                         <dd className="mt-1 text-[1.1rem] tnum">{e.custom_questions.length}</dd>
                       </div>
                     </dl>
-                    <Button href={`/organizer/events/${e.id}`} size="sm" variant="outline" className="mt-6">
+                    <Button href={`/organizer/events/${e.id}`} size="sm" variant="outline" className="mt-6 self-start">
                       Manage
                     </Button>
+                    </div>
                   </Card>
                 </li>
               )

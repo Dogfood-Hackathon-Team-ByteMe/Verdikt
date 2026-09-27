@@ -7,7 +7,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../auth/AuthProvider'
-import { initialsFor, primaryRole } from '../auth/roles'
+import { globalBadgeFor, initialsFor } from '../auth/roles'
 import { Link } from 'react-router-dom'
 import { Button, Icon, cn } from '../ui'
 
@@ -62,9 +62,13 @@ export function AccountMenu({ onNavigate }: { onNavigate?: () => void }) {
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label="Account menu"
-        className="grid h-10 w-10 place-items-center rounded-full bg-yellow font-mono text-[0.72rem] font-bold text-on-bright ring-2 ring-ink transition-transform duration-200 hover:-translate-y-0.5"
+        className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-yellow font-mono text-[0.72rem] font-bold text-on-bright ring-2 ring-ink transition-transform duration-200 hover:-translate-y-0.5"
       >
-        {initialsFor(user)}
+        {user.avatar_url ? (
+          <img src={user.avatar_url} alt="" className="h-full w-full object-cover object-center" />
+        ) : (
+          initialsFor(user)
+        )}
       </button>
 
       <div
@@ -74,10 +78,39 @@ export function AccountMenu({ onNavigate }: { onNavigate?: () => void }) {
           open ? 'scale-100 opacity-100' : 'pointer-events-none scale-95 opacity-0',
         )}
       >
-        <div className="truncate font-mono text-[0.82rem] font-bold text-ink">{user.name || user.email}</div>
-        <div className="label-mono mt-1 text-muted">{primaryRole(user)}</div>
+        <div className="flex items-center gap-3">
+          {user.avatar_url ? (
+            <img
+              src={user.avatar_url}
+              alt=""
+              className="h-9 w-9 shrink-0 rounded-full object-cover object-center ring-1 ring-ink"
+            />
+          ) : (
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-yellow font-mono text-[0.68rem] font-bold text-on-bright ring-1 ring-ink">
+              {initialsFor(user)}
+            </span>
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="truncate font-mono text-[0.82rem] font-bold text-ink">{user.name || user.email}</div>
+        {/* The address, not a role: what someone *is* here depends on which
+            event you are looking at, so a single global label would be a lie. */}
+            <div className="truncate label-mono mt-0.5 text-muted">{user.email}</div>
+          </div>
+        </div>
+        {globalBadgeFor(user) && (
+          <div className="label-mono mt-2 inline-flex rounded-btn bg-red px-2 py-0.5 text-white">admin</div>
+        )}
 
         <div className="mt-3 border-t border-line pt-3">
+          <Link
+            to="/profile"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="flex w-full items-center gap-2.5 rounded-btn px-2 py-2 font-mono text-[0.8rem] font-bold text-ink transition-colors duration-200 hover:bg-fog hover:text-blue"
+          >
+            <Icon name="users" size={15} strokeWidth={2.2} />
+            Profile
+          </Link>
           <Link
             to="/dashboard"
             role="menuitem"
@@ -87,8 +120,10 @@ export function AccountMenu({ onNavigate }: { onNavigate?: () => void }) {
             <Icon name="chart" size={15} strokeWidth={2.2} />
             Dashboard
           </Link>
-          {/* Only shown to people who actually organise an event. */}
-          {user.organiser_in.length > 0 && (
+          {/* Shown to everyone: hosting is an action any account can take, not
+              a rank, so gating this on already organising something hid the
+              only route to a first event. */}
+          {(
             <Link
               to="/organizer"
               role="menuitem"
@@ -96,7 +131,7 @@ export function AccountMenu({ onNavigate }: { onNavigate?: () => void }) {
               className="flex w-full items-center gap-2.5 rounded-btn px-2 py-2 font-mono text-[0.8rem] font-bold text-ink transition-colors duration-200 hover:bg-fog hover:text-blue"
             >
               <Icon name="scale" size={15} strokeWidth={2.2} />
-              Organizer
+              {user.organiser_in.length > 0 ? 'Your events' : 'Host an event'}
             </Link>
           )}
           <button

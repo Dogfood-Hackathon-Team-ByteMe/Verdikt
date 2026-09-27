@@ -46,7 +46,7 @@ export const accept = async (req, res, next) => {
 	try {
 		const team = await inviteService.acceptInvite(
 			req.params.token,
-			req.user._id,
+			req.user,
 		);
 		res.json({
 			success: true,

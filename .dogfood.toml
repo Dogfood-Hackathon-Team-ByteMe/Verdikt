@@ -19,8 +19,8 @@ t4 = "none"
 [acceptance]
 report = "acceptance-report.txt"
 command = "cd backend && npm install && npm run acceptance"
-tests_total = 89
-tests_passed = 89
+tests_total = 99
+tests_passed = 99
 
 [run]
 command = "docker compose up"
@@ -33,20 +33,22 @@ auth_register    = "POST /api/auth/register"
 auth_login       = "POST /api/auth/login"
 auth_logout      = "POST /api/auth/logout"
 auth_me          = "GET  /api/auth/me"
-events           = "GET  /api/events"
-event_featured   = "GET  /api/events/featured"
-tracks           = "GET  /api/tracks"
-projects         = "GET  /api/projects?q=&track=&eventId=&status="
-project_detail   = "GET  /api/projects/:id"
-project_submit   = "POST /api/projects/:id/submit"
-project_unsubmit = "POST /api/projects/:id/unsubmit"
-teams            = "GET  /api/teams"
-invite_preview   = "GET  /api/invites/token/:token"
+events           = "GET /api/events"
+event_featured   = "GET /api/events/featured"
+tracks           = "GET /api/tracks"
+project_detail   = "GET /api/projects/:id"
+teams            = "GET /api/teams"
+invite_preview   = "GET /api/invites/token/:token"
 invite_accept    = "POST /api/invites/token/:token/accept"
-judge_scores     = "GET  /api/judge/scores"
-export_csv       = "GET  /api/export.csv?eventId="
-health           = "GET  /health"
+health           = "GET /health"
 
+# Bare paths used by run.py. It appends nothing and sends no method,
+# so each of these is a complete URL path.
+gallery      = "/api/projects"
+submit       = "/api/projects/6ab8d8953c07ed286e6c8c60/submit"
+judge_scores = "/api/judge/scores"
+peer_scores  = "/api/scores?judge=6ab8d8933c07ed286e6c8ad9"
+csv_export   = "/api/export.csv?eventId=6ab8d8933c07ed286e6c8b54"
 [demo]
 password = "dogfood2026"
 admin = "admin@verdikt.dev"
@@ -60,3 +62,14 @@ normalization_proof = false
 pairwise_mode = false
 threat_model = false
 api_first = false
+
+[portal]
+base_url = "http://localhost:8080"
+
+[auth]
+# Session cookies, minted by `npm run dogfood-config`. They expire after
+# 24 hours -- re-run that command before a grading pass.
+participant = "Cookie: session=3b162c219b0636092579a1d0ac151329f346ba8408e82b448be2cae762497deb"
+judge_a = "Cookie: session=cc9069d9dcb797e8103b31aa47ee9701edb1e35e9f2647efdea9e9d5e52b80a9"
+judge_b = "Cookie: session=15efcf54be952906c820c439dac160a87a5c81612d4ff8dcde022fdc52f628dc"
+organizer = "Cookie: session=cff9a608446266fef620ba8f711b829fb7b6b3277947af3eb3297a9a53c359d5"

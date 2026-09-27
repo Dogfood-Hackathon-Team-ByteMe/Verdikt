@@ -4,6 +4,8 @@ import * as notificationRepository from '../repositories/NotificationRepository.
 import * as teamRepository from '../repositories/TeamRepository.js';
 import * as eventRepository from '../repositories/EventRepository.js';
 import * as userRepository from '../repositories/UserRepository.js';
+import User from '../models/User.js';
+import { assertCanParticipate } from '../utils/eventRoles.js';
 
 export const createRequest = async (teamId, requestingUser) => {
     const team = await teamRepository.findById(teamId);
@@ -16,9 +18,7 @@ export const createRequest = async (teamId, requestingUser) => {
         throw Object.assign(new Error('Team is already full'), { statusCode: 400 });
     }
 
-    if (event && event.judgeIds && event.judgeIds.some(id => id.toString() === requestingUser._id.toString())) {
-        throw Object.assign(new Error("Judges cannot participate in the event they are judging"), { statusCode: 403 });
-    }
+    assertCanParticipate(requestingUser, event);
 
     // Ensure user is not already participating in this event
     if (event && requestingUser.participatingIn && requestingUser.participatingIn.some(e => e.toString() === event._id.toString())) {
@@ -74,6 +74,12 @@ export const acceptRequest = async (requestId, requestingUser) => {
         if (team.members.length >= maxTeamSize) {
             throw Object.assign(new Error('Team is already full'), { statusCode: 400 });
         }
+
+        // Re-check at accept time, not just at request time: the requester may
+        // have been made a judge or organiser while the request sat pending.
+        // findById only populates name and email, so load the roles.
+        const applicant = await User.findById(req.userId._id || req.userId).session(session);
+        assertCanParticipate(applicant, event);
 
         // Add member, sync everything
         await teamRepository.addMember(team._id, req.userId._id, session);

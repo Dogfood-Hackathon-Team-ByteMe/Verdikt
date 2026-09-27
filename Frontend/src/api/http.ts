@@ -32,6 +32,7 @@ export const routes = {
   invites: '/api/invites',
   invite: (token: string) => `/api/invites/token/${encodeURIComponent(token)}`,
   acceptInvite: (token: string) => `/api/invites/token/${encodeURIComponent(token)}/accept`,
+  images: '/api/images',
   notifications: '/api/notifications',
   notificationRead: (id: string) => `/api/notifications/${encodeURIComponent(id)}/read`,
 }
@@ -183,6 +184,22 @@ export function createHttpApi(baseUrl: string): VerdiktApi {
 
     deleteTrack: async (id) => {
       await unwrap<void>(await send('DELETE', routes.track(id)))
+    },
+
+    /**
+     * Raw bytes, not multipart: the backend mounts express.raw() for image
+     * types, which avoids taking on a multipart parser for one endpoint.
+     * fetch() sends a File as its own body with the right Content-Type.
+     */
+    uploadImage: async (file: File) => {
+      const res = await fetch(base + routes.images, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { Accept: 'application/json', 'Content-Type': file.type },
+        body: file,
+      })
+      const { url } = await unwrap<{ url: string }>(res)
+      return url
     },
 
     // --- Notifications ----------------------------------------------------

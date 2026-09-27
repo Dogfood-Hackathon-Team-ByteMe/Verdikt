@@ -2,6 +2,8 @@ import * as scoreRepository from "../repositories/ScoreRepository.js";
 import * as eventRepository from "../repositories/EventRepository.js";
 import Project from "../models/Project.js";
 import Track from "../models/Track.js";
+import Event from "../models/Event.js";
+import { isJudgeOf, isOrganiserOf } from "../utils/eventRoles.js";
 
 export const createScore = async (data, requestingUser) => {
 	if (!data.projectId)
@@ -113,11 +115,15 @@ export const searchScores = async (query, eventId, requestingUser) => {
 	if (!eventId) throw Object.assign(new Error("eventId is required"), { statusCode: 400 });
 	const filter = { eventId };
 	const isAdmin = requestingUser.isAdmin;
-	const isOrg = requestingUser.organiserIn && requestingUser.organiserIn.some(id => id.toString() === eventId.toString());
-	
+	const isOrg = isOrganiserOf(requestingUser, eventId);
+
 	if (!isAdmin && !isOrg) {
-		const isJudge = requestingUser.judgeIn && requestingUser.judgeIn.length > 0;
-		if (!isJudge) throw Object.assign(new Error("Only admins, organizers, and judges can search scores"), { statusCode: 403 });
+		// Judging some other event is not a credential here: the check is
+		// against this event's own judges.
+		const event = await Event.findById(eventId).populate('tracks');
+		if (!isJudgeOf(requestingUser, event)) {
+			throw Object.assign(new Error("Only admins, organizers, and judges can search scores"), { statusCode: 403 });
+		}
 		filter.judgeId = requestingUser._id;
 	}
 	return await scoreRepository.search(query, filter);

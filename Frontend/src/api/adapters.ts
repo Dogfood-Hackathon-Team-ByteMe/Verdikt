@@ -89,6 +89,8 @@ interface EventDoc {
   customQuestions?: QuestionDoc[]
   minTeamSize?: number
   maxTeamSize?: number
+  bannerUrl?: string
+  judgeIds?: Ref[]
   createdAt?: string
 }
 
@@ -134,6 +136,8 @@ export function toHackEvent(doc: EventDoc): HackEvent {
     custom_questions: (doc.customQuestions ?? []).map(toQuestion).filter((q) => q.key),
     min_team_size: doc.minTeamSize ?? 1,
     max_team_size: doc.maxTeamSize ?? 4,
+    banner_url: str(doc.bannerUrl),
+    judge_ids: (doc.judgeIds ?? []).map(refId).filter(Boolean),
   }
 }
 
@@ -301,6 +305,7 @@ export function fromEventDraft(draft: Record<string, unknown>): Record<string, u
     submissions_close: 'submissionsClose',
     min_team_size: 'minTeamSize',
     max_team_size: 'maxTeamSize',
+    banner_url: 'bannerUrl',
     is_featured: 'isFeatured',
   }
   for (const [from, to] of Object.entries(map)) {

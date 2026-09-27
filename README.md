@@ -53,9 +53,22 @@ back to non-atomic with a warning.
 
 ```bash
 cd backend
-npm test              # 84 tests
+npm test              # 99 tests
 npm run acceptance    # same, and writes ../acceptance-report.txt
 ```
+
+### The graders' checker
+
+```bash
+cd backend
+npm run import-fixtures     # loads ../fixtures.json into the portal
+npm run dogfood-config      # writes [portal]/[auth]/[routes] into .dogfood.toml
+cd .. && python run.py .dogfood.toml
+```
+
+`fixtures.json` is a second, already-closed event, so `run.py` can check a real
+deadline refusal rather than take one on trust. The session cookies
+`dogfood-config` writes last 24 hours; re-run it before a grading pass.
 
 The suite starts a throwaway in-memory MongoDB replica set and drives the real
 Express app over HTTP. Nothing calls a service directly, because what is being
@@ -103,4 +116,4 @@ DATA-MODEL.md     schema, indexes, import/export
 acceptance-report.txt
 ```
 
-MIT licensed. Not affiliated with Hackathon Raptors or MLH.
+MIT licensed. 

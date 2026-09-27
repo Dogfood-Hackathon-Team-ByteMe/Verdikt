@@ -2,8 +2,9 @@
  * Footer — MLH-style sign-off: the mark and a line about the project, link
  * columns, then the oversized wordmark and the legal row.
  */
+import { Link } from 'react-router-dom'
 import { Container, Logo } from '../ui'
-import { navLinks } from './Nav'
+import { isAnchor, navLinks } from './Nav'
 
 const columns = [
   { title: 'The event', links: navLinks.slice(0, 4) },
@@ -33,17 +34,27 @@ export function Footer() {
             <nav key={col.title} aria-label={col.title}>
               <div className="label-mono text-red">{col.title}</div>
               <ul className="mt-4 flex flex-col gap-2">
-                {col.links.map((l) => (
-                  <li key={l.href}>
-                    <a
-                      href={l.href}
-                      {...(l.href.startsWith('http') ? { target: '_blank', rel: 'noreferrer' } : {})}
-                      className="font-mono text-[0.85rem] text-muted transition-colors hover:text-blue"
-                    >
-                      {l.label}
-                    </a>
-                  </li>
-                ))}
+                {col.links.map((l) => {
+                  const className = 'font-mono text-[0.85rem] text-muted transition-colors hover:text-blue'
+                  const external = l.href.startsWith('http')
+                  return (
+                    <li key={l.href}>
+                      {isAnchor(l.href) || external ? (
+                        <a
+                          href={l.href}
+                          {...(external ? { target: '_blank', rel: 'noreferrer' } : {})}
+                          className={className}
+                        >
+                          {l.label}
+                        </a>
+                      ) : (
+                        <Link to={l.href} className={className}>
+                          {l.label}
+                        </Link>
+                      )}
+                    </li>
+                  )
+                })}
               </ul>
             </nav>
           ))}

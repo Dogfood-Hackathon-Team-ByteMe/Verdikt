@@ -56,6 +56,26 @@ export const getAllUsers = async (filter = {}) => {
 	return await userRepository.findAll(filter);
 };
 
+/**
+ * What a profile edit may touch. Everything else about a User -- isAdmin and
+ * the three per-event role arrays -- is set by the server as a side effect of
+ * doing something (creating an event, accepting an invite), never by asking.
+ *
+ * Without this allow-list the whole body reached findByIdAndUpdate, so
+ * `PUT /api/users/:id {"isAdmin":true}` promoted the caller to admin, and
+ * `{"organiserIn":[id]}` handed them an event they had no claim on. Registration
+ * was already guarded against exactly this; the update path was not.
+ */
+const PROFILE_FIELDS = ["name", "email", "password", "avatarUrl"];
+
+const pickProfile = (data = {}) => {
+	const out = {};
+	for (const key of PROFILE_FIELDS) {
+		if (data[key] !== undefined) out[key] = data[key];
+	}
+	return out;
+};
+
 export const updateUser = async (id, updateData, requestingUser) => {
 	if (
 		!requestingUser.isAdmin &&
@@ -66,12 +86,57 @@ export const updateUser = async (id, updateData, requestingUser) => {
 		});
 	}
 
-	// Hash new password if being updated
-	if (updateData.password) {
-		updateData.password = await bcrypt.hash(updateData.password, SALT_ROUNDS);
+	// Admins are no exception: `isAdmin` is deliberately not settable over HTTP
+	// at all, which is the promise the README makes. Promote in the database.
+	const safe = pickProfile(updateData);
+
+	if (safe.email !== undefined) {
+		safe.email = String(safe.email).trim().toLowerCase();
+		if (!safe.email) {
+			throw Object.assign(new Error("Email cannot be empty"), { statusCode: 400 });
+		}
+		const clash = await userRepository.findByEmail(safe.email);
+		if (clash && clash._id.toString() !== id.toString()) {
+			throw Object.assign(new Error("That email is already in use"), { statusCode: 409 });
+		}
 	}
 
-	const user = await userRepository.update(id, updateData);
+	if (safe.name !== undefined && !String(safe.name).trim()) {
+		throw Object.assign(new Error("Name cannot be empty"), { statusCode: 400 });
+	}
+
+	// Changing a password requires proving you know the current one. A live
+	// session is not enough on its own: a borrowed laptop or a stolen cookie
+	// would otherwise be a permanent account takeover, because the new password
+	// locks the real owner out.
+	// Only for your OWN account: an admin resetting someone else's password
+	// cannot be expected to know it.
+	const isSelf = requestingUser._id.toString() === id.toString();
+	if (safe.password && isSelf) {
+		const current = String(updateData.currentPassword ?? "");
+		if (!current) {
+			throw Object.assign(new Error("Enter your current password to set a new one"), {
+				statusCode: 400,
+				field: "currentPassword",
+			});
+		}
+
+		// Read the hash explicitly: every other read strips it.
+		const withHash = await userRepository.findByEmailWithPassword(
+			(await userRepository.findById(id))?.email,
+		);
+		const ok = withHash && (await bcrypt.compare(current, withHash.password));
+		if (!ok) {
+			throw Object.assign(new Error("Your current password is not correct"), {
+				statusCode: 403,
+				field: "currentPassword",
+			});
+		}
+
+		safe.password = await bcrypt.hash(safe.password, SALT_ROUNDS);
+	}
+
+	const user = await userRepository.update(id, safe);
 	if (!user)
 		throw Object.assign(new Error("User not found"), { statusCode: 404 });
 	return user;

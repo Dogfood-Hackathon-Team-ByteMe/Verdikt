@@ -10,7 +10,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { ApiError, usingMockData } from '../api'
 import { DEMO_PASSWORD } from '../api/mockAuth'
 import { useAuth } from '../auth/AuthProvider'
-import { initialsFor, primaryRole } from '../auth/roles'
+import { globalBadgeFor, initialsFor } from '../auth/roles'
 import { Alert, Button, Container, Field, Icon, Logo, Panel, ThemeToggle } from '../ui'
 
 export type AuthMode = 'signin' | 'signup'
@@ -135,7 +135,7 @@ export default function AuthPage({ mode }: { mode: AuthMode }) {
               <SignedIn
                 initials={initialsFor(user)}
                 name={user.name || user.email}
-                role={primaryRole(user)}
+                role={globalBadgeFor(user) ?? user.email}
                 pending={pending}
                 onSignOut={() => void signOut()}
               />

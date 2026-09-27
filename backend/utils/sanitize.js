@@ -14,12 +14,17 @@ export const toPublicUser = (user) => {
 };
 
 /**
- * Resolve the coarse role stored on a Session.
+ * A label for UI chrome. NOT a role, and never an input to an access decision.
  *
- * Roles are really per-event (organiserIn and participatingIn hold event ids,
- * judgeIn holds track ids), so this single value is only a hint for UI chrome.
- * Anything that actually gates access re-checks the specific event in the
- * service layer.
+ * `admin` is the only thing anyone is globally. Every other word below is
+ * shorthand for "has done this somewhere", derived from the per-event arrays
+ * (organiserIn and participatingIn hold event ids, judgeIn holds track ids) --
+ * it says nothing about the event in front of you. Someone organising their
+ * own hackathon and competing in another is "organizer" here and must still be
+ * treated as an ordinary entrant in the second one.
+ *
+ * So: pick a menu with it, never a permission. Authorisation asks
+ * utils/eventRoles.js about the specific event instead.
  *
  * Note the spelling split that is easy to trip on: the Session enum uses the
  * American "organizer", while the User field is the British "organiserIn".

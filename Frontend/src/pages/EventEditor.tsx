@@ -18,7 +18,7 @@ import { api } from '../api'
 import type { CustomQuestion, HackEvent, Prize, Track } from '../api/types'
 import { useApi } from '../hooks/useApi'
 import { AppShell, PageHeading } from '../sections/AppShell'
-import { Alert, Badge, Button, Card, Container, Field, Icon, Segmented } from '../ui'
+import { Alert, Badge, Button, Card, Container, Field, Icon, Segmented , ImagePicker } from '../ui'
 
 type Tab = 'details' | 'tracks' | 'prizes' | 'questions' | 'submissions'
 
@@ -137,6 +137,7 @@ function useSaver(save: () => Promise<unknown>, onSaved: () => void) {
 function DetailsTab({ event, onSaved }: { event: HackEvent; onSaved: () => void }) {
   const [name, setName] = useState(event.name)
   const [tagline, setTagline] = useState(event.tagline ?? '')
+  const [banner, setBanner] = useState(event.banner_url ?? '')
   const [description, setDescription] = useState(event.description ?? '')
   const [startsAt, setStartsAt] = useState(toLocalInput(event.starts_at))
   const [closesAt, setClosesAt] = useState(toLocalInput(event.submissions_close))
@@ -148,6 +149,7 @@ function DetailsTab({ event, onSaved }: { event: HackEvent; onSaved: () => void 
       api.updateEvent(event.id, {
         name: name.trim(),
         tagline: tagline.trim(),
+        banner_url: banner,
         description: description.trim(),
         starts_at: startsAt ? new Date(startsAt).toISOString() : undefined,
         submissions_close: closesAt ? new Date(closesAt).toISOString() : undefined,
@@ -166,6 +168,13 @@ function DetailsTab({ event, onSaved }: { event: HackEvent; onSaved: () => void 
         <Field label="Event name" value={name} onChange={(e) => setName(e.target.value)} />
         <Field label="Tagline" placeholder="One line for the hero" value={tagline} onChange={(e) => setTagline(e.target.value)} />
         <Field label="Description" value={description} onChange={(e) => setDescription(e.target.value)} />
+        <ImagePicker
+          label="Event banner"
+          shape="banner"
+          hint="Shown across the event card. PNG, JPEG, WEBP or GIF, up to 2 MB."
+          value={banner}
+          onChange={setBanner}
+        />
 
         <div className="grid gap-5 sm:grid-cols-2">
           <DateField label="Starts at" value={startsAt} onChange={setStartsAt} hint="Drives the before / during / after state." />
@@ -476,7 +485,10 @@ function QuestionsTab({ event, onSaved }: { event: HackEvent; onSaved: () => voi
       <ul className="mt-6 flex flex-col gap-4">
         {rows.map((q, i) => (
           <li key={i} className="rounded-card bg-fog p-4">
-            <div className="grid gap-3 sm:grid-cols-[1fr_1fr_150px_auto] sm:items-end">
+            {/* items-START, not items-end. Only the Key field carries a hint,
+                and bottom-aligning made its extra line push every other input
+                down out of step with it. Tops align, so the inputs line up. */}
+            <div className="grid gap-3 sm:grid-cols-[1fr_1fr_150px] sm:items-start">
               <Field
                 label="Question"
                 placeholder="What was the hardest part?"
@@ -502,19 +514,23 @@ function QuestionsTab({ event, onSaved }: { event: HackEvent; onSaved: () => voi
                   <option value="url">URL</option>
                 </select>
               </div>
+            </div>
+            {/* Row-level actions share one line under the fields, so Remove no
+                longer floats against a field whose height it cannot match. */}
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
+              <label className="flex items-center gap-2 font-mono text-[0.78rem]">
+                <input
+                  type="checkbox"
+                  checked={q.required}
+                  onChange={(e) => set(i, { required: e.target.checked })}
+                  className="h-4 w-4 accent-[var(--color-blue)]"
+                />
+                Required before a team can submit
+              </label>
               <Button size="sm" variant="ghost" onClick={() => setRows((r) => r.filter((_, idx) => idx !== i))}>
                 Remove
               </Button>
             </div>
-            <label className="mt-3 flex items-center gap-2 font-mono text-[0.78rem]">
-              <input
-                type="checkbox"
-                checked={q.required}
-                onChange={(e) => set(i, { required: e.target.checked })}
-                className="h-4 w-4 accent-[var(--color-blue)]"
-              />
-              Required before a team can submit
-            </label>
           </li>
         ))}
       </ul>

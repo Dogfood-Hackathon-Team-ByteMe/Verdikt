@@ -108,5 +108,18 @@ not lost user data, but run the replica set for anything real.
   questions, 8 teams and projects (7 submitted, 1 draft), 8 ballots. It refuses
   to run against a populated database unless `SEED_FORCE=true`, so restarting
   compose does not wipe work.
+- **Fixtures**: `backend/scripts/import-fixtures.js` (`npm run import-fixtures`)
+  loads the graders' `fixtures.json` as an additional, already-closed event --
+  8 tracks, 30 judges, 40 teams, 41 submitted projects, 126 ballots. It clears
+  a previous import first, so re-running does not double the gallery, and it
+  leaves the seeded event untouched.
+- **Images**: avatars, event banners and project thumbnails are uploaded to
+  `POST /api/images` (raw bytes, 2 MB cap, type verified by magic number, not
+  by the Content-Type header) and stored as a `Buffer` in the `images`
+  collection. Records keep only the URL `/api/images/<id>`, so a list of
+  projects never carries image bytes. `GET /api/images/:id` is public and
+  immutable-cached for a year with an ETag, which is safe because replacing a
+  picture mints a new id rather than mutating one.
 - **Backup**: everything lives in one Mongo database; `mongodump` is the whole
-  backup story.
+  backup story — including the images, which is why they are in Mongo and not
+  on a second volume.
