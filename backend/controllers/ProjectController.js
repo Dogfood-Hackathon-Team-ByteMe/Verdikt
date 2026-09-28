@@ -1,4 +1,23 @@
 import * as projectService from "../services/ProjectService.js";
+import * as voteService from "../services/VoteService.js";
+
+/**
+ * A project as the API answers it: the document plus its community tally.
+ *
+ * voteCount and hasVoted ride on every read rather than behind their own
+ * endpoint, so the gallery does not need a second round trip per card. One
+ * aggregation covers the whole list.
+ */
+const withVotes = async (projects, user) => {
+	const list = Array.isArray(projects) ? projects : [projects];
+	const { counts, mine } = await voteService.tallyFor(list.map((p) => p._id), user);
+	const dressed = list.map((p) => ({
+		...(p.toObject ? p.toObject() : p),
+		voteCount: counts.get(p._id.toString()) ?? 0,
+		hasVoted: mine.has(p._id.toString()),
+	}));
+	return Array.isArray(projects) ? dressed : dressed[0];
+};
 
 /**
  * Build the structural filter shared by the list and search endpoints.
@@ -33,7 +52,7 @@ export const getById = async (req, res, next) => {
 		const project = await projectService.getProjectById(req.params.id, req.user);
 		res.json({
 			success: true,
-			data: project,
+			data: await withVotes(project, req.user),
 			message: "Project retrieved successfully",
 		});
 	} catch (error) {
@@ -59,7 +78,7 @@ export const getAll = async (req, res, next) => {
 
 		res.json({
 			success: true,
-			data: projects,
+			data: await withVotes(projects, req.user),
 			message: "Projects retrieved successfully",
 		});
 	} catch (error) {
@@ -128,7 +147,7 @@ export const deleteById = async (req, res, next) => {
 export const search = async (req, res, next) => {
 	try {
 		const results = await projectService.searchProjects(req.query.q, filterFromQuery(req.query), req.user);
-		res.json({ success: true, data: results, message: "Search results" });
+		res.json({ success: true, data: await withVotes(results, req.user), message: "Search results" });
 	} catch (error) {
 		next(error);
 	}

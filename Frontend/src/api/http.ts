@@ -19,11 +19,15 @@ import {
   toBallot,
   toHackEvent,
   toInvite,
+  toAuditEntry,
+  toCommunityPoll,
+  toJudgeApplication,
   toJudgeInvite,
   toJudgeInvitePreview,
   toJudgeQueue,
   toNotification,
   toProject,
+  toProjectComment,
   toStandings,
   toTeam,
   toTrack,
@@ -65,6 +69,16 @@ export const routes = {
   judgeInvite: (id: string) => `/api/judge-invites/${encodeURIComponent(id)}`,
   judgeInviteToken: (token: string) => `/api/judge-invites/token/${encodeURIComponent(token)}`,
   acceptJudgeInvite: (token: string) => `/api/judge-invites/token/${encodeURIComponent(token)}/accept`,
+  audit: (eventId: string) => `/api/events/${encodeURIComponent(eventId)}/audit`,
+  vote: (projectId: string) => `/api/projects/${encodeURIComponent(projectId)}/vote`,
+  community: (eventId: string) => `/api/events/${encodeURIComponent(eventId)}/community`,
+  comments: (projectId: string) => `/api/projects/${encodeURIComponent(projectId)}/comments`,
+  comment: (id: string) => `/api/comments/${encodeURIComponent(id)}`,
+  judgeApplications: '/api/judge-applications',
+  judgeApplicationsForEvent: (eventId: string) =>
+    `/api/judge-applications/event/${encodeURIComponent(eventId)}`,
+  acceptJudgeApplication: (id: string) => `/api/judge-applications/${encodeURIComponent(id)}/accept`,
+  rejectJudgeApplication: (id: string) => `/api/judge-applications/${encodeURIComponent(id)}/reject`,
   notifications: '/api/notifications',
   notificationRead: (id: string) => `/api/notifications/${encodeURIComponent(id)}/read`,
 }
@@ -309,6 +323,46 @@ export function createHttpApi(baseUrl: string): VerdiktApi {
     },
 
     // --- Notifications ----------------------------------------------------
+    applyToJudge: async (eventId, trackId) => {
+      await post(routes.judgeApplications, { eventId, trackId })
+    },
+
+    listJudgeApplications: async (eventId) =>
+      (await get<Record<string, unknown>[]>(routes.judgeApplicationsForEvent(eventId))).map(toJudgeApplication),
+
+    acceptJudgeApplication: async (id) => {
+      await post(routes.acceptJudgeApplication(id))
+    },
+
+    rejectJudgeApplication: async (id) => {
+      await post(routes.rejectJudgeApplication(id))
+    },
+
+    castVote: async (projectId) => {
+      const data = await post<{ voteCount?: number }>(routes.vote(projectId))
+      return { vote_count: data?.voteCount ?? 0 }
+    },
+
+    withdrawVote: async (projectId) => {
+      const data = await unwrap<{ voteCount?: number }>(await send('DELETE', routes.vote(projectId)))
+      return { vote_count: data?.voteCount ?? 0 }
+    },
+
+    getCommunityPoll: async (eventId) => toCommunityPoll(await get(routes.community(eventId))),
+
+    listComments: async (projectId) =>
+      (await get<Record<string, unknown>[]>(routes.comments(projectId))).map(toProjectComment),
+
+    addComment: async (projectId, body, parentId) =>
+      toProjectComment(await post(routes.comments(projectId), parentId ? { body, parentId } : { body })),
+
+    removeComment: async (commentId) => {
+      await unwrap<void>(await send('DELETE', routes.comment(commentId)))
+    },
+
+    listAuditTrail: async (eventId) =>
+      (await get<Record<string, unknown>[]>(routes.audit(eventId))).map(toAuditEntry),
+
     listNotifications: async () => (await get<Record<string, unknown>[]>(routes.notifications)).map(toNotification),
     markNotificationRead: async (id) => {
       await patch(routes.notificationRead(id))

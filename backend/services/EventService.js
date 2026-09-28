@@ -58,6 +58,42 @@ const pickEventFields = (data = {}) => {
 	return out;
 };
 
+/**
+ * Team size bounds have to make sense against each other, not just on their own.
+ *
+ * The schema caps each at >= 1 but nothing compared them, so an organiser could
+ * save min 5 / max 2. That is not merely odd -- it is an event nobody can
+ * finish. Joining is refused once a team hits maxTeamSize, so the team can
+ * never reach minTeamSize, `hasMinimumMembers` stays false forever, and the
+ * entry is stuck.
+ *
+ * `current` supplies the values a partial update leaves out: PUT {minTeamSize:5}
+ * on an event whose max is 2 has to be refused, and it can only be caught by
+ * checking the new value against the stored one.
+ */
+const assertTeamSizes = (patch, current = {}) => {
+	const bound = (key, label) => {
+		if (patch[key] === undefined) return current[key];
+
+		const value = Number(patch[key]);
+		if (!Number.isInteger(value) || value < 1) {
+			throw Object.assign(new Error(`${label} must be a whole number of at least 1`), { statusCode: 400 });
+		}
+		patch[key] = value;
+		return value;
+	};
+
+	const min = bound("minTeamSize", "Minimum team size");
+	const max = bound("maxTeamSize", "Maximum team size");
+
+	if (min !== undefined && max !== undefined && min > max) {
+		throw Object.assign(
+			new Error(`Minimum team size (${min}) cannot be larger than the maximum (${max})`),
+			{ statusCode: 400 },
+		);
+	}
+};
+
 // ─── Issue #23: createEvent ──────────────────────────────────────────────────
 export const createEvent = async (data, requestingUser) => {
 	// Required fields
@@ -83,6 +119,10 @@ export const createEvent = async (data, requestingUser) => {
 	}
 
 	if (data.criteria !== undefined) data.criteria = normaliseCriteria(data.criteria);
+
+	// Defaults from the schema, so create is held to the same rule as update
+	// even when only one of the two bounds is supplied.
+	assertTeamSizes(data, { minTeamSize: 1, maxTeamSize: 4 });
 
 	return await runInTransaction(async (session) => {
 		const event = await eventRepository.create(data, session);
@@ -180,6 +220,10 @@ export const updateEvent = async (id, updateData, requestingUser) => {
 	}
 
 	if (patch.criteria !== undefined) patch.criteria = normaliseCriteria(patch.criteria);
+
+	// Against the stored values, so changing one bound is checked against the
+	// other one as it currently stands.
+	assertTeamSizes(patch, { minTeamSize: event.minTeamSize, maxTeamSize: event.maxTeamSize });
 
 	// Only an admin decides which event the landing page features; an organiser
 	// setting it on their own event is them choosing to be the front page.

@@ -116,17 +116,70 @@ their event — one endpoint, three answers, decided server-side.
 
 `backend/tests/` drives the real Express app over HTTP against a throwaway
 in-memory MongoDB replica set. No test calls a service directly, because the
-thing being verified is precisely that the API enforces the rules. 84 tests in
-four suites; `npm run acceptance` writes `acceptance-report.txt`.
+thing being verified is precisely that the API enforces the rules. 255 tests in
+nine suites; `npm run acceptance` writes `acceptance-report.txt`.
 
 ## Known limits
 
-- Rate limiting is not implemented. Login is brute-forceable. T3 asks for
-  anti-abuse; this is where it would go.
+- Rate limit counters are in memory, so they reset with the process and are
+  not shared between processes. Correct for the single API container this
+  ships as; a multi-process deployment needs a shared store first.
 - The seed password is shared across demo accounts and printed to the log. Fine
   for a seeded demo, not for anything real.
 - No email delivery, so invites are shareable links rather than sent messages.
-- Cross-judge normalization and the weighted rubric are T2, and are not claimed.
+
+## Anti-abuse and the audit trail
+
+Two middlewares and one collection, in `middlewares/rateLimit.js`,
+`services/AuditService.js` and `models/AuditLog.js`.
+
+Who a request is counted against matters more than the ceiling it is counted
+towards. Sign-in is counted twice: a tight bucket per email address that only
+failures fill, and a looser one per address. Counting by address alone would
+let one attacker on a shared connection lock out everyone behind it; counting
+by account alone would miss someone spraying a single guess across a thousand
+accounts. A successful sign-in clears the account's bucket, so a user who
+mistypes twice and then remembers carries nothing forward.
+
+All of that depends on `req.ip` being the caller rather than nginx, which is
+why `app.js` sets `trust proxy`. Trusting exactly one hop also means a client
+that sends its own `X-Forwarded-For` cannot shift the blame, because the
+address Express reads is the one nginx appended, not the one the client
+supplied.
+
+The audit trail answers the question a disputed result actually raises, which
+is usually not "what did that judge score" but "why was that person judging at
+all". Every change to a panel is recorded with its actor, and there is no
+update or delete path anywhere: a log you can edit answers nothing. Writes
+never throw -- an audit failure must not roll back the action it describes --
+so the trail can have holes, and they are logged rather than hidden.
+
+An organiser reads their own event's trail; a judge is refused, because it
+names every other judge and the order they arrived in.
+
+## The community layer
+
+Votes (`models/Vote.js`, `services/VoteService.js`) live in their own
+collection, nowhere near `Score`, and nothing in `utils/standings.js` knows
+they exist -- that is the whole design. The crowd's ranking and the judges'
+ranking are published side by side and can disagree in the open; there is no
+code path by which one leaks into the other. One vote per person per project is
+a unique index, not a request-path check a race could slip past, and the
+people who run the official ranking -- the event's organiser, its judges,
+admins -- cannot vote at all, along with the project's own team.
+
+Comments (`models/Comment.js`, `services/CommentService.js`) are public to
+read, one reply level deep, and removal never deletes the row: the body is
+blanked at read time and the placeholder says whether the author or the
+organiser did it, so threads keep their shape and moderation stays visible.
+Organiser removals land in the audit trail; an author taking back their own
+words does not, because that is not an exercise of power over anyone else.
+
+The public API (`routes/v1Routes.js`, `controllers/PublicApiController.js`,
+documented in [API.md](API.md)) is GET-only, keyless and rate-limited per
+address. Its serializers are allow-lists: a field a response does not name
+does not exist on this surface, which is how drafts, team rosters and email
+addresses stay unpublishable by accident rather than by vigilance.
 
 ## Judging
 

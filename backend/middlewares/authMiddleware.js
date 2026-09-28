@@ -2,6 +2,15 @@ import Session from "../models/Session.js";
 
 export const authenticate = async (req, res, next) => {
 	try {
+		// Idempotent: app.js runs this once for the whole /api tree so the rate
+		// limiter can count a signed-in caller against their account, and every
+		// route still names it for its own sake. Without this guard the second
+		// call would repeat the session lookup on every request.
+		// `sessionDoc` is the sentinel because every branch below sets it,
+		// including the anonymous ones -- `user` alone would be null for a
+		// signed-out visitor and look like "not resolved yet".
+		if (req.sessionDoc !== undefined) return next();
+
 		// Parse cookie header: "session=abc123"
 		const cookieHeader = req.headers.cookie;
 		if (!cookieHeader) {

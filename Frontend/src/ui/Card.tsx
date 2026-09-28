@@ -5,7 +5,8 @@
  *    its own text colour, so children only need opacity for secondary text.
  *    'ink' is the always-dark slab, so it stays dark in dark mode too.
  *  - interactive: lifts on hover.
- *  - tilt: tilts toward the pointer in 3D with a soft light glare (implies interactive).
+ *  - tilt: tilts toward the pointer in 3D with a soft light glare (implies
+ *    interactive). Deliberately does NOT also lift: see the note by the classes.
  */
 import { useRef, type HTMLAttributes, type ReactNode } from 'react'
 import { cn } from './cn'
@@ -42,8 +43,8 @@ export function Card({ tone = 'paper', interactive, tilt, className, children, .
     const r = el.getBoundingClientRect()
     const px = (e.clientX - r.left) / r.width // 0 (left) .. 1 (right)
     const py = (e.clientY - r.top) / r.height // 0 (top) .. 1 (bottom)
-    el.style.setProperty('--rx', `${(0.5 - py) * 6}deg`) // tilt up/down
-    el.style.setProperty('--ry', `${(px - 0.5) * 8}deg`) // tilt left/right
+    el.style.setProperty('--rx', `${(0.5 - py) * 4}deg`) // tilt up/down
+    el.style.setProperty('--ry', `${(px - 0.5) * 5}deg`) // tilt left/right
     el.style.setProperty('--gx', `${px * 100}%`) // glare centre x
     el.style.setProperty('--gy', `${py * 100}%`) // glare centre y
   }
@@ -63,10 +64,17 @@ export function Card({ tone = 'paper', interactive, tilt, className, children, .
       className={cn(
         'relative overflow-hidden rounded-card',
         tones[tone],
-        (interactive || tilt) &&
-          'transition-[transform,box-shadow] duration-300 ease-out-soft hover:-translate-x-1 hover:-translate-y-1 hover:shadow-[8px_8px_0_var(--color-ink)]',
+        (interactive || tilt) && 'transition-[transform,box-shadow] ease-out-soft hover:shadow-[8px_8px_0_var(--color-shadow-hard)]',
+        // A plain interactive card lifts on hover. A TILTED one must not: it is
+        // already being moved by the pointer, and adding a lift shifted it out
+        // from under the cursor, which fired pointerleave -> reset -> pointerenter
+        // in a loop and made the card visibly shake.
+        interactive && !tilt && 'duration-300 hover:-translate-x-1 hover:-translate-y-1',
         tilt &&
-          'group/tilt [transform:perspective(900px)_rotateX(var(--rx,0deg))_rotateY(var(--ry,0deg))] hover:[transform:perspective(900px)_rotateX(var(--rx,0deg))_rotateY(var(--ry,0deg))_translate(-4px,-4px)]',
+          // Short transition so the card tracks the pointer instead of easing
+          // toward a target that has already moved -- the other half of the
+          // shake. The rotation alone is the hover affordance.
+          'group/tilt duration-150 [transform:perspective(900px)_rotateX(var(--rx,0deg))_rotateY(var(--ry,0deg))]',
         className,
       )}
       {...rest}
@@ -75,7 +83,7 @@ export function Card({ tone = 'paper', interactive, tilt, className, children, .
       {tilt && (
         <span
           className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover/tilt:opacity-100"
-          style={{ background: 'radial-gradient(420px circle at var(--gx,50%) var(--gy,50%), rgba(255,255,255,0.25), transparent 45%)' }}
+          style={{ background: 'radial-gradient(420px circle at var(--gx,50%) var(--gy,50%), var(--color-glare), transparent 45%)' }}
           aria-hidden="true"
         />
       )}

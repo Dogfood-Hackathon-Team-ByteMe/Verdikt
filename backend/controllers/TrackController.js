@@ -1,4 +1,6 @@
 import * as trackService from "../services/TrackService.js";
+import * as auditService from "../services/AuditService.js";
+import { ACTIONS } from "../services/AuditService.js";
 
 export const create = async (req, res, next) => {
 	try {
@@ -83,6 +85,12 @@ export const deleteById = async (req, res, next) => {
 export const addJudge = async (req, res, next) => {
 	try {
 		const track = await trackService.assignJudge(req.params.id, req.body.email, req.user);
+		await auditService.record(req, ACTIONS.JUDGE_APPOINTED, {
+			eventId: track?.eventId?._id ?? track?.eventId ?? null,
+			targetType: "Track",
+			targetId: req.params.id,
+			meta: { email: req.body?.email, via: "email" },
+		});
 		res.json({ success: true, data: track, message: "Judge added" });
 	} catch (error) {
 		next(error);
@@ -92,6 +100,12 @@ export const addJudge = async (req, res, next) => {
 export const removeJudge = async (req, res, next) => {
 	try {
 		const track = await trackService.removeJudge(req.params.id, req.params.userId, req.user);
+		await auditService.record(req, ACTIONS.JUDGE_REMOVED, {
+			eventId: track?.eventId?._id ?? track?.eventId ?? null,
+			targetType: "User",
+			targetId: req.params.userId,
+			meta: { trackId: req.params.id },
+		});
 		res.json({ success: true, data: track, message: "Judge removed" });
 	} catch (error) {
 		next(error);

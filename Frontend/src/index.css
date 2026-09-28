@@ -61,6 +61,13 @@
   --color-panel-2: #4d67f0;
   --color-rule: color-mix(in srgb, #ff4b3e 22%, transparent); /* the red margin rules */
   --color-shadow: color-mix(in srgb, #16150f 9%, transparent);
+  /* The hard offset block behind a lifted card. Deliberately NOT --color-ink:
+     ink inverts to near-white in dark mode, which turned every card hover into
+     a glaring white slab. */
+  --color-shadow-hard: #16150f;
+  /* The pointer glare on a tilted card. White works on paper; on a near-black
+     page a 25% white smear reads as a grey wash, so dark mode uses far less. */
+  --color-glare: rgba(255, 255, 255, 0.25);
 
   /* Fixed pairs (same in both themes) */
   --color-on-bright: #16150f;   /* on yellow / white / bright blocks */
@@ -93,6 +100,8 @@
   --animate-pulse-dot: pulse-dot 1.8s ease-out infinite;
   /* One-shot: a bar/row briefly says "a ballot just landed here". */
   --animate-landed: landed 0.9s var(--ease-out-soft);
+  /* Route changes: the new page eases in instead of snapping. */
+  --animate-page-in: page-in 0.34s var(--ease-out-soft);
 
   @keyframes marquee {
     from { transform: translateX(0); }
@@ -109,6 +118,10 @@
   @keyframes pulse-dot {
     0% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 55%, transparent); }
     100% { box-shadow: 0 0 0 8px transparent; }
+  }
+  @keyframes page-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: none; }
   }
   @keyframes landed {
     0% { filter: brightness(1); }
@@ -149,6 +162,8 @@
   --color-panel-2: #2c40b8;
   --color-rule: color-mix(in srgb, #ff6a5f 26%, transparent);
   --color-shadow: color-mix(in srgb, #000000 45%, transparent);
+  --color-shadow-hard: #3b3b47;
+  --color-glare: rgba(255, 255, 255, 0.07);
 
   --color-slab: #08080b;
 
@@ -185,6 +200,8 @@
   --color-panel-2: #2c40b8;
   --color-rule: color-mix(in srgb, #ff6a5f 26%, transparent);
   --color-shadow: color-mix(in srgb, #000000 45%, transparent);
+  --color-shadow-hard: #3b3b47;
+  --color-glare: rgba(255, 255, 255, 0.07);
 
   --color-slab: #08080b;
 

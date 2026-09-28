@@ -3,6 +3,8 @@ import * as eventController from "../controllers/EventController.js";
 import * as userController from "../controllers/UserController.js";
 import * as standingsController from "../controllers/StandingsController.js";
 import * as assignmentController from "../controllers/AssignmentController.js";
+import * as auditController from "../controllers/AuditController.js";
+import * as voteController from "../controllers/VoteController.js";
 import { authenticate, requireAuth } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
@@ -24,6 +26,15 @@ router.get("/:id/participants", authenticate, requireAuth, userController.getEve
 // who can read them can infer what each judge scored.
 router.get("/:id/standings", authenticate, requireAuth, standingsController.getForEvent);
 router.get("/:id/standings.csv", authenticate, requireAuth, standingsController.getCsvForEvent);
+
+// The community poll: submitted projects ranked by votes. Public, because it
+// orders projects the public gallery already shows by a number the cards
+// already carry -- and it never touches the judged standings.
+router.get("/:id/community", voteController.communityStandings);
+
+// Who changed the panel, and when. Organiser of this event or admin: it names
+// every judge on the panel and the order they were appointed in.
+router.get("/:id/audit", authenticate, requireAuth, auditController.listForEvent);
 
 // Exports for the other stages of the event, organiser only.
 router.get("/:id/entries.csv", authenticate, requireAuth, standingsController.getEntriesCsv);

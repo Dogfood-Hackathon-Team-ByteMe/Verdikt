@@ -18,7 +18,7 @@
  * upsert.
  */
 import { useEffect, useMemo, useState } from 'react'
-import { api } from '../api'
+import { ApiError, api } from '../api'
 import type { Ballot, Criterion, HackEvent, Project } from '../api/types'
 import { useAuth } from '../auth/AuthProvider'
 import { standingIn } from '../auth/participation'
@@ -47,6 +47,14 @@ export default function JudgePage() {
 
   const event = judging.find((e) => e.id === eventId)
 
+  // Events whose organizer has opened applications and where this account is
+  // still a visitor. An organiser, a participant or a sitting judge is refused
+  // by the API, so there is no point offering them the button.
+  const openToApply = useMemo(
+    () => (events.data ?? []).filter((e) => e.judge_apply_open && standingIn(user, e) === 'visitor'),
+    [events.data, user],
+  )
+
   if (events.loading && !events.data) {
     return (
       <AppShell>
@@ -62,9 +70,14 @@ export default function JudgePage() {
       <AppShell>
         <Container className="py-20">
           <PageHeading label="Judging" title="Nothing to" tail="score.">
-            You are not a judge on any event yet. An organizer adds judges from their event&apos;s settings.
+            You are not a judge on any event yet. An organizer can add you from their event&apos;s settings, or you
+            can ask to judge one of the events below.
           </PageHeading>
-          <Button className="mt-8" href="/events" icon="arrowRight">Browse events</Button>
+          {openToApply.length > 0 ? (
+            <OpenToJudges events={openToApply} onApplied={() => events.reload()} />
+          ) : (
+            <Button className="mt-8" href="/events" icon="arrowRight">Browse events</Button>
+          )}
         </Container>
       </AppShell>
     )
@@ -93,8 +106,102 @@ export default function JudgePage() {
             it the previously-selected entry id survives into the new queue,
             matches nothing, and leaves the ballot pane on its placeholder. */}
         {event && <JudgingDesk key={event.id} event={event} />}
+
+        {openToApply.length > 0 && <OpenToJudges events={openToApply} onApplied={() => events.reload()} />}
       </Container>
     </AppShell>
+  )
+}
+
+/**
+ * Events accepting judge applications.
+ *
+ * The counterpart to the organizer's Applications panel: an invite is the
+ * organizer choosing you, this is you choosing the event. You pick a track
+ * because judges are appointed per track, not per event -- the same shape the
+ * appointment takes either way.
+ *
+ * Applying does not make you a judge, so the row stays put and reports that it
+ * is waiting. The organizer decides, and the answer arrives as a notification
+ * on the dashboard.
+ */
+function OpenToJudges({ events, onApplied }: { events: HackEvent[]; onApplied: () => void }) {
+  return (
+    <section className="mt-12">
+      <h2 className="headline text-[1.25rem]">Open to judges</h2>
+      <p className="mt-2 font-mono text-[0.8rem] text-muted">
+        These organizers are taking applications. Pick the track you want to judge.
+      </p>
+      <ul className="mt-5 flex flex-col gap-3">
+        {events.map((e) => (
+          <ApplyRow key={e.id} event={e} onApplied={onApplied} />
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+function ApplyRow({ event, onApplied }: { event: HackEvent; onApplied: () => void }) {
+  const [trackId, setTrackId] = useState(event.tracks[0]?.id ?? '')
+  const [busy, setBusy] = useState(false)
+  const [done, setDone] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const apply = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      await api.applyToJudge(event.id, trackId)
+      setDone(true)
+      onApplied()
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Could not send that application.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <li>
+      <Card tone="paper" className="p-4 sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="font-display text-[1rem] font-bold">{event.name}</div>
+            {event.tagline && <div className="font-mono text-[0.75rem] text-subtle">{event.tagline}</div>}
+          </div>
+
+          {done ? (
+            <Badge variant="green">Application sent</Badge>
+          ) : event.tracks.length === 0 ? (
+            <span className="font-mono text-[0.75rem] text-subtle">No tracks yet</span>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                aria-label={`Track to judge in ${event.name}`}
+                value={trackId}
+                onChange={(e) => setTrackId(e.target.value)}
+                className="rounded-btn bg-fog px-3 py-2 font-mono text-[0.78rem] outline-none ring-1 ring-line focus-visible:ring-2 focus-visible:ring-blue"
+              >
+                {event.tracks.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+              <Button size="sm" disabled={busy || !trackId} onClick={() => void apply()}>
+                {busy ? 'Sending' : 'Apply to judge'}
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {error && (
+          <Alert tone="danger" className="mt-3">
+            {error}
+          </Alert>
+        )}
+      </Card>
+    </li>
   )
 }
 

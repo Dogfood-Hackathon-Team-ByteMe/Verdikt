@@ -23,7 +23,18 @@ import { Icon } from './Icon'
 import { cn } from './cn'
 
 const ACCEPT = 'image/png,image/jpeg,image/webp,image/gif'
+
+/**
+ * Keep this in step with ImageService.MAX_BYTES on the server and with
+ * client_max_body_size in nginx.conf. nginx defaults to 1 MB, which used to
+ * reject anything larger with a bare 413 before the request reached the API.
+ */
 const MAX_BYTES = 2 * 1024 * 1024
+const MAX_MB = MAX_BYTES / 1024 / 1024
+
+/** "0.4 MB" / "812 KB" — small files read better in KB. */
+const fileSize = (bytes: number) =>
+  bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`
 
 /**
  * Display classes for each shape.
@@ -63,6 +74,9 @@ export function ImagePicker({
   const [picked, setPicked] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Size of what is actually stored: the CROPPED bytes, not the file the user
+  // picked, since cropping re-encodes and usually shrinks it.
+  const [size, setSize] = useState<number | null>(null)
 
   /** Validate, then hand off to the cropper. Nothing is uploaded yet. */
   const choose = (file: File | undefined) => {
@@ -76,7 +90,7 @@ export function ImagePicker({
       return
     }
     if (file.size > MAX_BYTES) {
-      setError(`That file is ${(file.size / 1024 / 1024).toFixed(1)} MB. The limit is 2 MB.`)
+      setError(`That image is ${fileSize(file.size)} — the limit is ${MAX_MB} MB. Try a smaller one.`)
       return
     }
     setPicked(file)
@@ -87,9 +101,19 @@ export function ImagePicker({
     setPicked(null)
     setBusy(true)
     try {
+      // Belt to the cropper's brace: it targets well under the cap, but a
+      // pathological image could still come back too big, and a clear message
+      // here beats a 413 from the edge.
+      if (cropped.size > MAX_BYTES) {
+        setError(`That crop is ${fileSize(cropped.size)} — the limit is ${MAX_MB} MB. Zoom out or pick a smaller image.`)
+        return
+      }
       onChange(await api.uploadImage(cropped))
+      setSize(cropped.size)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not upload that image.')
+      const message = e instanceof Error ? e.message : 'Could not upload that image.'
+      // A 413 is the proxy refusing the body; say what actually happened.
+      setError(/413/.test(message) ? `That image is over the ${MAX_MB} MB limit.` : message)
     } finally {
       setBusy(false)
     }
@@ -131,7 +155,15 @@ export function ImagePicker({
             {busy ? 'Uploading...' : value ? 'Replace' : 'Upload'}
           </Button>
           {value && (
-            <Button size="sm" variant="ghost" disabled={disabled || busy} onClick={() => onChange('')}>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={disabled || busy}
+              onClick={() => {
+                onChange('')
+                setSize(null)
+              }}
+            >
               Remove
             </Button>
           )}
@@ -141,7 +173,15 @@ export function ImagePicker({
       {error ? (
         <p className="font-mono text-[0.72rem] font-bold text-danger">{error}</p>
       ) : (
-        hint && <p className="font-mono text-[0.72rem] text-subtle">{hint}</p>
+        <p className="font-mono text-[0.72rem] text-subtle">
+          {size !== null && value ? (
+            <>
+              <span className="font-bold text-ink">{fileSize(size)}</span> uploaded · limit {MAX_MB} MB
+            </>
+          ) : (
+            (hint ?? `PNG, JPEG, WEBP or GIF · up to ${MAX_MB} MB`)
+          )}
+        </p>
       )}
 
       <CropDialog

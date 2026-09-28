@@ -17,6 +17,8 @@ const SUITES = [
     ['Judging: rubric, ballots and the panel', 'tests/stageF.judging.mjs'],
     ['Standings: the computed leaderboard', 'tests/stageG.standings.mjs'],
     ['Tier 2: normalization, assignment, scope, invites, exports', 'tests/stageH.panel.mjs'],
+    ['Tier 3: rate limiting and the audit trail', 'tests/stageI.abuse.mjs'],
+    ['Tier 3: community voting, comments and the public API', 'tests/stageJ.community.mjs'],
 ];
 
 const reportFlag = process.argv.indexOf('--report');
@@ -80,7 +82,7 @@ for (const [name, file] of SUITES) {
 say('');
 say('='.repeat(70));
 say(`TOTAL: ${totalPassed} passed, ${totalFailed} failed`);
-say(totalFailed === 0 ? 'RESULT: Tier 1 and Tier 2 acceptance PASSED' : 'RESULT: FAILED');
+say(totalFailed === 0 ? 'RESULT: Tier 1, Tier 2 and Tier 3 acceptance PASSED' : 'RESULT: FAILED');
 say('='.repeat(70));
 
 if (reportPath) {

@@ -20,12 +20,16 @@ import type {
   HackEvent,
   Invite,
   JudgeInvite,
+  AuditEntry,
+  CommunityPoll,
+  JudgeApplication,
   JudgeInvitePreview,
   JudgeInviteStatus,
   JudgeProgress,
   JudgeQueue,
   Notification,
   Prize,
+  ProjectComment,
   Project,
   StandingRow,
   Standings,
@@ -126,6 +130,7 @@ interface EventDoc {
   maxTeamSize?: number
   bannerUrl?: string
   judgeIds?: Ref[]
+  isJudgeApplyOpen?: boolean
   createdAt?: string
 }
 
@@ -186,6 +191,7 @@ export function toHackEvent(doc: EventDoc): HackEvent {
     max_team_size: doc.maxTeamSize ?? 4,
     banner_url: str(doc.bannerUrl),
     judge_ids: (doc.judgeIds ?? []).map(refId).filter(Boolean),
+    judge_apply_open: doc.isJudgeApplyOpen === true,
   }
 }
 
@@ -240,6 +246,8 @@ interface ProjectDoc {
   customAnswers?: Record<string, string>
   status?: string
   submittedAt?: string
+  voteCount?: number
+  hasVoted?: boolean
 }
 
 export function toProject(doc: ProjectDoc): Project {
@@ -269,6 +277,57 @@ export function toProject(doc: ProjectDoc): Project {
 
     status: doc.status === 'submitted' ? 'submitted' : 'draft',
     submitted_at: iso(doc.submittedAt),
+
+    vote_count: typeof doc.voteCount === 'number' ? doc.voteCount : 0,
+    has_voted: doc.hasVoted === true,
+  }
+}
+
+// --- Community ---------------------------------------------------------------
+
+export function toProjectComment(doc: {
+  _id?: string
+  projectId?: Ref
+  parentId?: Ref
+  author?: { _id?: string; name?: string } | null
+  body?: string
+  removed?: boolean
+  createdAt?: string
+}): ProjectComment {
+  return {
+    id: doc._id ?? '',
+    project_id: refId(doc.projectId),
+    author: doc.author ? { id: doc.author._id ?? '', name: doc.author.name } : null,
+    body: doc.body ?? '',
+    parent_id: doc.parentId ? refId(doc.parentId) || null : null,
+    removed: doc.removed === true,
+    created_at: iso(doc.createdAt),
+  }
+}
+
+export function toCommunityPoll(doc: {
+  eventId?: Ref
+  totalVotes?: number
+  standings?: Array<{
+    rank?: number
+    projectId?: Ref
+    title?: string
+    teamName?: string | null
+    track?: string | null
+    voteCount?: number
+  }>
+}): CommunityPoll {
+  return {
+    event_id: refId(doc.eventId),
+    total_votes: doc.totalVotes ?? 0,
+    standings: (doc.standings ?? []).map((row) => ({
+      rank: row.rank ?? 0,
+      project_id: refId(row.projectId),
+      title: row.title ?? 'Untitled',
+      team_name: row.teamName ?? null,
+      track: row.track ?? null,
+      vote_count: row.voteCount ?? 0,
+    })),
   }
 }
 
@@ -355,6 +414,7 @@ export function fromEventDraft(draft: Record<string, unknown>): Record<string, u
     max_team_size: 'maxTeamSize',
     banner_url: 'bannerUrl',
     is_featured: 'isFeatured',
+    is_judge_apply_open: 'isJudgeApplyOpen',
   }
   for (const [from, to] of Object.entries(map)) {
     if (draft[from] !== undefined) body[to] = draft[from]
@@ -615,6 +675,60 @@ export function toAssignmentRun(doc: AssignmentRunDoc): AssignmentRun {
 
 const inviteStatus = (value: unknown): JudgeInviteStatus =>
   value === 'accepted' || value === 'expired' || value === 'revoked' ? value : 'pending'
+
+export function toAuditEntry(doc: {
+  _id?: string
+  action?: string
+  actorId?: Ref
+  targetType?: string | null
+  targetId?: string | null
+  meta?: Record<string, unknown>
+  createdAt?: string
+}): AuditEntry {
+  const actorId = refId(doc.actorId)
+  return {
+    id: doc._id ?? '',
+    action: doc.action ?? 'unknown',
+    // Null for an action nobody was signed in for, such as a failed sign-in.
+    actor: actorId
+      ? { id: actorId, name: refField(doc.actorId, 'name'), email: refField(doc.actorId, 'email') }
+      : null,
+    target_type: doc.targetType ?? undefined,
+    target_id: doc.targetId ?? undefined,
+    meta: doc.meta ?? {},
+    created_at: iso(doc.createdAt),
+  }
+}
+
+/**
+ * One judge application, as the organizer's list returns it.
+ *
+ * `trackId` is populated with `topic` only, so the track's name arrives without
+ * the rest of the track -- enough to say which one they asked for.
+ */
+export function toJudgeApplication(doc: {
+  _id?: string
+  eventId?: Ref
+  trackId?: Ref
+  userId?: Ref
+  status?: string
+  createdAt?: string
+}): JudgeApplication {
+  const status = doc.status === 'accepted' || doc.status === 'rejected' ? doc.status : 'pending'
+  return {
+    id: doc._id ?? '',
+    event_id: refId(doc.eventId),
+    track_id: refId(doc.trackId),
+    track_name: refField(doc.trackId, 'topic') || undefined,
+    applicant: {
+      id: refId(doc.userId),
+      name: refField(doc.userId, 'name'),
+      email: refField(doc.userId, 'email'),
+    },
+    status,
+    created_at: iso(doc.createdAt),
+  }
+}
 
 export function toJudgeInvite(doc: {
   _id?: string

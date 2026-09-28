@@ -22,7 +22,7 @@ export function Segmented<T extends string>({
 }) {
   const refs = useRef<Record<string, HTMLButtonElement | null>>({})
   const list = useRef<HTMLDivElement>(null)
-  const [pill, setPill] = useState({ left: 0, width: 0 })
+  const [pill, setPill] = useState({ left: 0, top: 0, width: 0, height: 0 })
 
   /**
    * Re-measure on any geometry change, not just a window resize.
@@ -37,7 +37,10 @@ export function Segmented<T extends string>({
   useLayoutEffect(() => {
     const measure = () => {
       const el = refs.current[value]
-      if (el) setPill({ left: el.offsetLeft, width: el.offsetWidth })
+      // offsetTop/Height as well as left/width: the strip wraps onto a second
+      // row on narrow screens, and a pill stretched from top-1 to bottom-1 then
+      // spanned BOTH rows instead of sitting on the active tab's own row.
+      if (el) setPill({ left: el.offsetLeft, top: el.offsetTop, width: el.offsetWidth, height: el.offsetHeight })
     }
     measure()
 
@@ -57,8 +60,8 @@ export function Segmented<T extends string>({
   return (
     <div ref={list} role="tablist" aria-label={label} className={cn('relative inline-flex max-w-full flex-wrap gap-1 rounded-full bg-fog p-1', className)}>
       <span
-        className="absolute top-1 bottom-1 rounded-full bg-yellow shadow-[0_6px_16px_-8px_rgba(120,160,10,0.9)] transition-[left,width] duration-500 ease-spring max-sm:hidden"
-        style={{ left: pill.left, width: pill.width }}
+        className="absolute rounded-full bg-yellow shadow-[0_6px_16px_-8px_rgba(120,160,10,0.9)] transition-[left,top,width,height] duration-500 ease-spring max-sm:hidden"
+        style={{ left: pill.left, top: pill.top, width: pill.width, height: pill.height }}
         aria-hidden="true"
       />
       {options.map((o) => (
@@ -74,6 +77,7 @@ export function Segmented<T extends string>({
           onClick={() => onChange(o.id)}
           className={cn(
             'relative z-10 rounded-full px-4 py-2 font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] transition-colors duration-300',
+            'outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-1 focus-visible:ring-offset-fog',
             value === o.id ? 'text-on-bright max-sm:bg-yellow' : 'text-muted hover:text-ink',
           )}
         >

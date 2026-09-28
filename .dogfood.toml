@@ -8,8 +8,9 @@ license = "MIT"
 
 [tiers]
 # Claim only what the acceptance report proves. Every T2 feature below has
-# HTTP-level tests in backend/tests/stageF-stageH and a browser check.
-claimed = ["T1", "T2"]
+# HTTP-level tests in backend/tests/stageF-stageH and a browser check; every
+# T3 feature has them in stageI-stageJ.
+claimed = ["T1", "T2", "T3"]
 t1 = "complete"
 t2 = "complete"  # judge invites (email-bound, single use) and batch assignment
                  # (N reviews per entry, track-isolated, load-balanced);
@@ -18,14 +19,23 @@ t2 = "complete"  # judge invites (email-bound, single use) and batch assignment
                  # dashboard; cross-judge normalization, method and proof in
                  # JUDGING.md; CSV export for entries, assignments, ballots and
                  # standings.
-t3 = "none"
+t3 = "complete"  # anti-abuse (per-account + per-address rate limits on
+                 # sign-in, registration, writes, comments and the keyless
+                 # surface; append-only audit trail of every panel change);
+                 # community voting (one vote per person, unique-indexed,
+                 # never touches the judged standings; organisers, judges,
+                 # own team and admins cannot vote); public comment threads
+                 # with organizer moderation recorded in the trail; and the
+                 # versioned keyless read API documented in API.md.
+                 # run.py carries probes only for T1/T2; the T3 proof is the
+                 # HTTP-level suites stageI + stageJ in the acceptance report.
 t4 = "none"
 
 [acceptance]
 report = "acceptance-report.txt"
 command = "cd backend && npm install && npm run acceptance"
-tests_total = 210
-tests_passed = 210
+tests_total = 255
+tests_passed = 255
 
 [run]
 command = "docker compose up"
@@ -59,6 +69,12 @@ judge_queue      = "GET /api/judge/queue?eventId=:id"
 judge_invites    = "GET|POST /api/tracks/:id/judge-invites"
 judge_invite     = "GET /api/judge-invites/token/:token"
 judge_accept     = "POST /api/judge-invites/token/:token/accept"
+vote             = "POST|DELETE /api/projects/:id/vote"
+community        = "GET /api/events/:id/community"
+comments         = "GET|POST /api/projects/:id/comments"
+comment          = "DELETE /api/comments/:id"
+audit            = "GET /api/events/:id/audit"
+public_api       = "GET /api/v1"
 health           = "GET /health"
 
 # Bare paths used by run.py. It appends nothing and sends no method,
@@ -91,7 +107,7 @@ base_url = "http://localhost:8080"
 [auth]
 # Session cookies, minted by `npm run dogfood-config`. They expire after
 # 24 hours -- re-run that command before a grading pass.
-participant = "Cookie: session=c55c855bf59d528fd99f4dedb84624c7dfe31f4c77fab9a8ea9dba232798c4bf"
-judge_a = "Cookie: session=66db0445fd285179a39ffcc81ca599f2a086451692c34bce46b1847af9c8db18"
-judge_b = "Cookie: session=8564cb0fb336a3229f9e5891ba6e849d8c0aa19b0740574dfd8fbc98d82b438f"
-organizer = "Cookie: session=0c16ae12039b23c5ba8dfff9abe05b8171c057218249c19c8823c523b4716036"
+participant = "Cookie: session=2103d0340dbe79fe5f7ca30596a7c7c2c2c5071bc31a76ab2a3af7f0bf9ee941"
+judge_a = "Cookie: session=d03bce61572d2b03cd7e5104514c5670046c227c673d6e02411ceba2d7c7b19e"
+judge_b = "Cookie: session=a74c5dc76f34f7de9654219c3f189ee0d73628e5af43ff28fd201257ff0929ef"
+organizer = "Cookie: session=700b0a8b696de6aa942ff7154721f10b8e7493342e1d17eed79ebe75c295638c"

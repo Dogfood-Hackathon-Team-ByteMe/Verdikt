@@ -72,6 +72,39 @@ export interface HackEvent {
    * may not enter *before* they click; the server enforces it either way.
    */
   judge_ids: string[]
+  /**
+   * Whether the organizer is accepting unsolicited judge applications.
+   * Invites are the other way onto a panel; this one is opt-in and public.
+   */
+  judge_apply_open: boolean
+}
+
+/**
+ * One line of the audit trail: a change to who can do what, and who made it.
+ *
+ * `action` is a dotted name from the backend's ACTIONS list. The UI renders any
+ * it does not recognise verbatim rather than hiding it, because a row nobody
+ * can read is still better than a row nobody can see.
+ */
+export interface AuditEntry {
+  id: string
+  action: string
+  actor: TeamMember | null
+  target_type?: string
+  target_id?: string
+  meta: Record<string, unknown>
+  created_at: string | null
+}
+
+/** Someone asking to judge an event, and what the organizer decided. */
+export interface JudgeApplication {
+  id: string
+  event_id: string
+  track_id: string
+  track_name?: string
+  applicant: TeamMember
+  status: 'pending' | 'accepted' | 'rejected'
+  created_at: string | null
 }
 
 export interface TeamMember {
@@ -118,6 +151,39 @@ export interface Project {
 
   status: 'draft' | 'submitted'
   submitted_at: string | null
+
+  /** Community poll: applause beside the judged ranking, never inside it. */
+  vote_count: number
+  /** Whether the signed-in viewer has voted for this project. */
+  has_voted: boolean
+}
+
+/** One public comment on a project page. Threads are one level deep. */
+export interface ProjectComment {
+  id: string
+  project_id: string
+  /** Null on a removed comment, and on nothing else. */
+  author: { id: string; name?: string } | null
+  body: string
+  parent_id: string | null
+  removed: boolean
+  created_at: string | null
+}
+
+/** One row of an event's community poll. */
+export interface CommunityRow {
+  rank: number
+  project_id: string
+  title: string
+  team_name: string | null
+  track: string | null
+  vote_count: number
+}
+
+export interface CommunityPoll {
+  event_id: string
+  total_votes: number
+  standings: CommunityRow[]
 }
 
 /** The subset of Project a team can write. Mirrors the backend allow-list. */
@@ -188,6 +254,7 @@ export interface EventDraft {
   custom_questions?: CustomQuestion[]
   criteria?: Criterion[]
   is_featured?: boolean
+  is_judge_apply_open?: boolean
 }
 
 /**

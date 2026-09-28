@@ -4,10 +4,16 @@
  * The landing page keeps its in-page anchors (#about, #gallery...), so it must
  * stay at "/" and those hashes must keep working -- BrowserRouter leaves them
  * alone. `#ui-kit` predates the router and is still honoured, in Landing.
+ *
+ * The outlet is keyed by pathname so React remounts it on navigation and the
+ * enter animation replays -- otherwise pages swap in a hard cut. Keying on
+ * pathname only (not search or hash) means filtering a list or jumping to an
+ * anchor does not re-trigger it.
  */
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { RequireAuth } from './auth/RequireAuth'
 import AuthPage from './pages/AuthPage'
+import CommunityPage from './pages/CommunityPage'
 import Dashboard from './pages/Dashboard'
 import EventEditor from './pages/EventEditor'
 import EventsPage from './pages/EventsPage'
@@ -24,12 +30,18 @@ import SubmitProject from './pages/SubmitProject'
 import TeamPage from './pages/TeamPage'
 
 export function AppRoutes() {
+  const { pathname } = useLocation()
+
   return (
+    <div key={pathname} className="animate-page-in motion-reduce:animate-none">
     <Routes>
       {/* Public */}
       <Route path="/" element={<Landing />} />
       <Route path="/projects" element={<ProjectsPage />} />
       <Route path="/events" element={<EventsPage />} />
+      {/* Public on purpose: the community poll is the public's, and a page
+          only the organizer could open would not be a community vote. */}
+      <Route path="/community" element={<CommunityPage />} />
       <Route path="/projects/:id" element={<ProjectDetail />} />
       <Route path="/login" element={<AuthPage mode="signin" />} />
       <Route path="/signup" element={<AuthPage mode="signup" />} />
@@ -110,5 +122,6 @@ export function AppRoutes() {
 
       <Route path="*" element={<NotFound />} />
     </Routes>
+    </div>
   )
 }

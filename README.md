@@ -8,7 +8,7 @@ Open-source, self-hosted hackathon platform: sign-ups, teams, submissions,
 and judging you can audit. One command, no cloud account.
 
 [![Tests](https://img.shields.io/badge/tests-210%20passing-22c55e?style=flat-square)](#verify-it-yourself)
-[![DOGFOOD](https://img.shields.io/badge/DOGFOOD%202026-T1%20%2B%20T2%20complete-2563eb?style=flat-square)](#whats-built)
+[![DOGFOOD](https://img.shields.io/badge/DOGFOOD%202026-T1%20%2B%20T2%20%2B%20T3%20complete-2563eb?style=flat-square)](#whats-built)
 [![License](https://img.shields.io/badge/license-MIT-111111?style=flat-square)](LICENSE)
 [![Stack](https://img.shields.io/badge/Node%2022%20%C2%B7%20React%2018%20%C2%B7%20MongoDB%207-6b7280?style=flat-square)](#architecture)
 
@@ -219,8 +219,8 @@ submissions" is checked against real closed data rather than asserted.
 
 | Criterion | Where to look |
 |---|---|
-| Tier completion and correctness | [`acceptance-report.txt`](acceptance-report.txt) · `python run.py .dogfood.toml` · [`.dogfood.toml`](.dogfood.toml) claims only what those two prove |
-| Judging integrity | [JUDGING.md](JUDGING.md) · `backend/services/JudgeScope.js` · `backend/tests/stageF`–`stageH` |
+| Tier completion and correctness | [`acceptance-report.txt`](acceptance-report.txt) · `python run.py .dogfood.toml` · [`.dogfood.toml`](.dogfood.toml) claims only what the acceptance suite proves over HTTP |
+| Judging integrity | [JUDGING.md](JUDGING.md) · `backend/services/JudgeScope.js` · `backend/tests/stageF`–`stageJ` |
 | Adoptability and operability | This file · `docker compose up` · [ARCHITECTURE.md](ARCHITECTURE.md) · [DATA-MODEL.md](DATA-MODEL.md) |
 | Code quality and innovation | `backend/utils/normalization.js` and its proof · the per-event role model in `backend/utils/eventRoles.js` |
 
@@ -233,13 +233,29 @@ events with configurable dates, tracks, prizes and custom questions; teams by
 invite link; draft-and-edit submissions; server-side deadline enforcement; a
 public searchable gallery; role checks enforced in the backend.
 
-**Tier 2 — judging: complete.** Judge invites and batch assignment; the
-organizer-weighted rubric; role isolation in the backend; the live organizer
-dashboard; cross-judge normalization with its method and proof written down;
-CSV export at every stage.
+**Tier 2 — judging: complete.** Judge invites, applications and batch
+assignment; the organizer-weighted rubric; role isolation in the backend; the
+live organizer dashboard; cross-judge normalization with its method and proof
+written down; CSV export at every stage.
 
-**Tiers 3 and 4: not started.** Community voting, comments, the public API and
-webhooks are untouched. `.dogfood.toml` claims T1 and T2 and nothing else.
+**Tier 3 — community: complete.** The anti-abuse floor: rate limiting on
+sign-in, registration, writes and the keyless surface, counted per account as
+well as per address so one attacker cannot lock out everyone behind a shared
+connection; and an append-only audit trail of every change to a panel,
+readable by the organizer and by nobody the trail describes. On that floor,
+the community layer: one-vote-per-person polling that never touches the judged
+standings (your own team, the judges, the organiser and admins cannot vote at
+all); public comment threads with organizer moderation, where a removed
+comment keeps its slot and says who removed it; and a versioned, keyless,
+rate-limited read API — [`API.md`](API.md) — built from allow-lists, so drafts,
+rosters and email addresses cannot leak by accident.
+
+**Tier 4: not started.** Webhooks and the rest are untouched.
+
+`.dogfood.toml` claims T1, T2 and T3, because the acceptance report proves all
+three over HTTP. The bundled `run.py` checker only carries probes for T1 and
+T2, so it verifies those two and lists T3 as claimed on the strength of the
+acceptance suite.
 
 ---
 
@@ -247,7 +263,10 @@ webhooks are untouched. `.dogfood.toml` claims T1 and T2 and nothing else.
 
 Underclaiming beats overclaiming. Read this before running it anywhere real:
 
-- **No rate limiting.** Login is brute-forceable as shipped. First thing to add.
+- **Rate limit counters live in memory.** They are correct for the single API
+  process this ships as, and reset when it restarts. More than one process
+  would give each its own counters, so a multi-process deployment needs a
+  shared store before the numbers mean anything.
 - **Seed passwords are shared and printed to the log.** Fine for a demo; set
   `SEED_PASSWORD` for anything else.
 - **No email service.** Team and judge invites are links you send yourself.
@@ -313,16 +332,18 @@ logged warning.
 ```
 backend/
   routes/ controllers/ services/ repositories/   the request path, in order
+  middlewares/  rateLimit.js    who gets counted, and against what
   utils/        rubric.js       ballot rules and weighting
                 standings.js    ranking, ties, unjudged entries
                 normalization.js (+ normalizationProof.js)
                 csv.js          quoting and formula defusing
-  tests/        210 HTTP-level tests (stageB … stageH)
+  tests/        255 HTTP-level tests (stageB … stageJ)
   scripts/      seed.js, import-fixtures.js, dogfood-config.js,
                 normalization-proof.js
 Frontend/       React + Vite SPA
   src/api/      one adapter layer; nothing Mongo-shaped reaches a component
   src/pages/    judging, organizing, submitting
+API.md          the public /api/v1 surface and its three promises
 docs/           the screenshots in this file
 JUDGING.md      how ballots become a ranking, and the proof
 ARCHITECTURE.md system design and the reasoning behind it

@@ -3,6 +3,9 @@
  * session cookie; everywhere else just reads req.user.
  */
 import * as authService from "../services/AuthService.js";
+import { clearLoginFailures, recordLoginFailure } from "../middlewares/rateLimit.js";
+import * as auditService from "../services/AuditService.js";
+import { ACTIONS } from "../services/AuditService.js";
 
 const COOKIE_NAME = "session";
 
@@ -40,6 +43,10 @@ export const register = async (req, res, next) => {
 export const login = async (req, res, next) => {
 	try {
 		const { user, session } = await authService.login(req.body);
+		// Getting in clears the account's failure count, so someone who
+		// mistyped their password twice and then remembered it starts clean
+		// rather than carrying those two attempts for the next quarter hour.
+		clearLoginFailures(req);
 		res.cookie(COOKIE_NAME, session.token, cookieOptions(session.expiresAt));
 		res.json({
 			success: true,
@@ -47,6 +54,14 @@ export const login = async (req, res, next) => {
 			message: "Signed in successfully",
 		});
 	} catch (error) {
+		// Only a rejected credential counts towards the per-account limit. A
+		// 400 for a missing field, or a 500, is not a guess.
+		if (error.statusCode === 401) {
+			recordLoginFailure(req);
+			await auditService.record(req, ACTIONS.LOGIN_FAILED, {
+				meta: { email: String(req.body?.email ?? "").trim().toLowerCase() },
+			});
+		}
 		next(error);
 	}
 };

@@ -15,6 +15,9 @@ import type {
   EventDraft,
   HackEvent,
   Invite,
+  AuditEntry,
+  JudgeApplication,
+  ProjectComment,
   JudgeInvite,
   Notification,
   PlatformStats,
@@ -70,6 +73,7 @@ export const mockEvent: HackEvent = {
   max_team_size: 4,
   // No judges in the sample data, so nothing is barred from entering it.
   judge_ids: [],
+  judge_apply_open: true,
 }
 
 /** Shorthand for the sample rows below. */
@@ -100,6 +104,9 @@ const project = (
   custom_answers: {},
   status: hoursAgo === null ? 'draft' : 'submitted',
   submitted_at: hoursAgo === null ? null : new Date(Date.now() - hoursAgo * 3600_000).toISOString(),
+  // A little sample applause, deterministic from the id so reloads agree.
+  vote_count: hoursAgo === null ? 0 : (id.length * 7) % 23,
+  has_voted: false,
 })
 
 let projects: Project[] = [
@@ -131,6 +138,12 @@ let notifications: Notification[] = []
 let ballots: Ballot[] = []
 let assignments: Assignment[] = []
 let judgeInvites: JudgeInvite[] = []
+
+/** Applications the mock organizer has received. Starts empty. */
+let judgeApplications: JudgeApplication[] = []
+
+/** Comments people leave in the mock. Starts empty. */
+let comments: ProjectComment[] = []
 let nextId = 1
 
 const delay = <T,>(value: T, ms = 180) => new Promise<T>((r) => setTimeout(() => r(value), ms))
@@ -242,6 +255,8 @@ export const mockApi: VerdiktApi = {
       custom_answers: draft.custom_answers ?? {},
       status: 'draft',
       submitted_at: null,
+      vote_count: 0,
+      has_voted: false,
     }
     projects = [created, ...projects]
     if (team) team.project_id = created.id
@@ -641,6 +656,81 @@ export const mockApi: VerdiktApi = {
     judgeInvites = judgeInvites.map((i) => (i.token === token ? { ...i, status: 'accepted' as const } : i))
     return delay({ event_id: EVENT_ID })
   },
+
+  castVote: (projectId) => {
+    projects = projects.map((p) =>
+      p.id === projectId && !p.has_voted ? { ...p, has_voted: true, vote_count: p.vote_count + 1 } : p,
+    )
+    const found = projects.find((p) => p.id === projectId)
+    return delay({ vote_count: found?.vote_count ?? 0 })
+  },
+  withdrawVote: (projectId) => {
+    projects = projects.map((p) =>
+      p.id === projectId && p.has_voted ? { ...p, has_voted: false, vote_count: Math.max(0, p.vote_count - 1) } : p,
+    )
+    const found = projects.find((p) => p.id === projectId)
+    return delay({ vote_count: found?.vote_count ?? 0 })
+  },
+  getCommunityPoll: (eventId) => {
+    const rows = projects
+      .filter((p) => p.status === 'submitted')
+      .sort((a, b) => b.vote_count - a.vote_count)
+      .map((p, i) => ({
+        rank: i + 1,
+        project_id: p.id,
+        title: p.title,
+        team_name: p.team,
+        track: p.track_name ?? null,
+        vote_count: p.vote_count,
+      }))
+    return delay({ event_id: eventId, total_votes: rows.reduce((s, r) => s + r.vote_count, 0), standings: rows })
+  },
+  listComments: (projectId) => delay(comments.filter((c) => c.project_id === projectId)),
+  addComment: (projectId, body, parentId) => {
+    const made: ProjectComment = {
+      id: `cmt-${comments.length + 1}`,
+      project_id: projectId,
+      author: { id: 'me', name: 'You' },
+      body,
+      parent_id: parentId ?? null,
+      removed: false,
+      created_at: new Date().toISOString(),
+    }
+    comments = [...comments, made]
+    return delay(made)
+  },
+  removeComment: (commentId) => {
+    comments = comments.map((c) =>
+      c.id === commentId ? { ...c, removed: true, author: null, body: '[removed by its author]' } : c,
+    )
+    return delay(undefined)
+  },
+
+  applyToJudge: (eventId, trackId) => {
+    judgeApplications = [
+      ...judgeApplications,
+      {
+        id: `app-${judgeApplications.length + 1}`,
+        event_id: eventId,
+        track_id: trackId,
+        applicant: { id: 'me', name: 'You', email: 'you@example.com' },
+        status: 'pending' as const,
+        created_at: new Date().toISOString(),
+      },
+    ]
+    return delay(undefined)
+  },
+  listJudgeApplications: (eventId) => delay(judgeApplications.filter((a) => a.event_id === eventId)),
+  acceptJudgeApplication: (id) => {
+    judgeApplications = judgeApplications.map((a) => (a.id === id ? { ...a, status: 'accepted' as const } : a))
+    return delay(undefined)
+  },
+  rejectJudgeApplication: (id) => {
+    judgeApplications = judgeApplications.map((a) => (a.id === id ? { ...a, status: 'rejected' as const } : a))
+    return delay(undefined)
+  },
+
+  listAuditTrail: () => delay([] as AuditEntry[]),
 
   listNotifications: () => delay(notifications),
   markNotificationRead: (id) => {

@@ -6,6 +6,10 @@ import type {
   EventDraft,
   HackEvent,
   Invite,
+  AuditEntry,
+  CommunityPoll,
+  JudgeApplication,
+  ProjectComment,
   JudgeInvite,
   JudgeInvitePreview,
   JudgeQueue,
@@ -122,6 +126,30 @@ export interface VerdiktApi {
   /** Public: which event and track, before the holder commits. */
   getJudgeInvite(token: string): Promise<JudgeInvitePreview>
   acceptJudgeInvite(token: string): Promise<{ event_id: string }>
+
+  // --- Judge applications -------------------------------------------------
+  /** Ask to judge an event that has opened applications. */
+  applyToJudge(eventId: string, trackId: string): Promise<void>
+  /** Organizer only: everyone who has asked, pending or decided. */
+  listJudgeApplications(eventId: string): Promise<JudgeApplication[]>
+  acceptJudgeApplication(applicationId: string): Promise<void>
+  rejectJudgeApplication(applicationId: string): Promise<void>
+
+  // --- Community: votes and comments --------------------------------------
+  /** Vote for a project. Refused for your own team, judges, organisers, admins. */
+  castVote(projectId: string): Promise<{ vote_count: number }>
+  withdrawVote(projectId: string): Promise<{ vote_count: number }>
+  /** The event's poll, ranked by votes. Public. */
+  getCommunityPoll(eventId: string): Promise<CommunityPoll>
+
+  listComments(projectId: string): Promise<ProjectComment[]>
+  addComment(projectId: string, body: string, parentId?: string): Promise<ProjectComment>
+  /** Author takes it back, or the event's organiser moderates. */
+  removeComment(commentId: string): Promise<void>
+
+  // --- Audit trail --------------------------------------------------------
+  /** Organizer or admin only: who changed this event's panel, newest first. */
+  listAuditTrail(eventId: string): Promise<AuditEntry[]>
 
   // --- Notifications ------------------------------------------------------
   listNotifications(): Promise<Notification[]>

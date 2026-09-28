@@ -8,7 +8,7 @@
  */
 import mongoose from 'mongoose';
 import { createClient, resetDatabase, startTestServer, stopTestServer } from './harness.mjs';
-import { createEvent, createTeam, createTrack, makeJudge, registerUser, seedScenario } from './helpers.mjs';
+import { createEvent, createTeam, createTrack, future, makeJudge, registerUser, seedScenario } from './helpers.mjs';
 import { describe, expect, it, run } from './runner.mjs';
 
 const RUBRIC = [
@@ -98,6 +98,62 @@ describe('an event update cannot be used to grant roles', () => {
         await organizer.client.put(`/api/events/${event._id}`, { isFeatured: true });
         const after = await mongoose.model('Event').findById(event._id);
         expect(after.isFeatured).toBe(false);
+    });
+});
+
+describe('team size bounds have to agree with each other', () => {
+    // A minimum above the maximum is not just odd, it is an event nobody can
+    // finish: joining stops at the maximum, so no team reaches the minimum,
+    // hasMinimumMembers never turns true, and every entry is stuck.
+    it('refuses a minimum larger than the maximum on update', async () => {
+        const { organizer, event } = await seedScenario();
+        const res = await organizer.client.put(`/api/events/${event._id}`, { minTeamSize: 5, maxTeamSize: 2 });
+        expect(res.status).toBe(400);
+
+        const after = await mongoose.model('Event').findById(event._id);
+        expect(after.minTeamSize <= after.maxTeamSize).toBe(true);
+    });
+
+    it('refuses it on create too', async () => {
+        const organizer = await registerUser('sizes-f@verdikt.dev');
+        const res = await organizer.client.post('/api/events', {
+            name: 'Impossible',
+            description: 'Nobody can finish this one',
+            submissionsClose: future(48),
+            minTeamSize: 6,
+            maxTeamSize: 3,
+        });
+        expect(res.status).toBe(400);
+    });
+
+    it('catches a partial update against the value already stored', async () => {
+        // Only minTeamSize is sent; the max it breaks is the one on the event.
+        const { organizer, event } = await seedScenario();
+        await organizer.client.put(`/api/events/${event._id}`, { minTeamSize: 2, maxTeamSize: 3 });
+
+        const res = await organizer.client.put(`/api/events/${event._id}`, { minTeamSize: 9 });
+        expect(res.status).toBe(400);
+
+        const after = await mongoose.model('Event').findById(event._id);
+        expect(after.minTeamSize).toBe(2);
+    });
+
+    it('refuses a fractional or zero size', async () => {
+        const { organizer, event } = await seedScenario();
+        for (const body of [{ minTeamSize: 0 }, { maxTeamSize: 0 }, { minTeamSize: 2.5 }, { maxTeamSize: -1 }]) {
+            expect((await organizer.client.put(`/api/events/${event._id}`, body)).status).toBe(400);
+        }
+    });
+
+    it('still allows a sensible change, including min equal to max', async () => {
+        const { organizer, event } = await seedScenario();
+        expect((await organizer.client.put(`/api/events/${event._id}`, { minTeamSize: 2, maxTeamSize: 6 })).status).toBe(200);
+        // A solo-only event is a legitimate configuration.
+        expect((await organizer.client.put(`/api/events/${event._id}`, { minTeamSize: 1, maxTeamSize: 1 })).status).toBe(200);
+
+        const after = await mongoose.model('Event').findById(event._id);
+        expect(after.minTeamSize).toBe(1);
+        expect(after.maxTeamSize).toBe(1);
     });
 });
 

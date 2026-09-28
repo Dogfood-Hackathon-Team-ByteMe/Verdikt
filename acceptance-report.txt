@@ -1,5 +1,5 @@
 Verdikt acceptance report
-Generated: 2026-09-27T14:43:22.048Z
+Generated: 2026-09-28T14:43:45.651Z
 Node: v24.18.0
 Tiers claimed: 1, 2
 
@@ -201,6 +201,13 @@ an event update cannot be used to grant roles
   PASS  an organiser cannot hand their event to someone else
   PASS  an organiser cannot feature their own event on the landing page
 
+team size bounds have to agree with each other
+  PASS  refuses a minimum larger than the maximum on update
+  PASS  refuses it on create too
+  PASS  catches a partial update against the value already stored
+  PASS  refuses a fractional or zero size
+  PASS  still allows a sensible change, including min equal to max
+
 a ballot is checked against the rubric
   PASS  accepts a complete ballot
   PASS  refuses a criterion the rubric does not define
@@ -242,7 +249,7 @@ judges' email addresses are not public
   PASS  a signed-in stranger does not get addresses
   PASS  the organiser of the event does get them, because they manage the panel
 
-34 passed, 0 failed, 34 total
+39 passed, 0 failed, 39 total
 
 
 ======================================================================
@@ -367,6 +374,72 @@ an export for every stage
 
 
 ======================================================================
-TOTAL: 210 passed, 0 failed
-RESULT: Tier 1 and Tier 2 acceptance PASSED
+Tier 3: rate limiting and the audit trail
+======================================================================
+
+sign-in cannot be brute-forced
+  PASS  an account stops answering after enough wrong passwords
+  PASS  a blocked account stays blocked even with the right password
+  PASS  the refusal says how long to wait
+  PASS  locking one account does not lock anyone else out
+  PASS  signing in successfully clears the failures before it
+  PASS  one address cannot spray guesses across many accounts
+  PASS  accounts cannot be created in bulk from one address
+  PASS  two signed-in accounts on one address do not share a write budget
+  PASS  reads are never throttled as writes
+
+the audit trail records who changed the panel
+  PASS  appointing and removing a judge is recorded against the event
+  PASS  a row names who did it and when
+  PASS  the newest change is first
+  PASS  an event update records which fields moved, not their values
+  PASS  dealing and clearing assignments is recorded
+  PASS  a judge invite and its withdrawal land in the event that owns them
+  PASS  a blocked sign-in is recorded even though it never reached a controller
+
+the audit trail is not readable by the panel it describes
+  PASS  a judge cannot read the event trail
+  PASS  another organiser cannot read this event trail
+  PASS  a stranger and a signed-out visitor are refused
+  PASS  only an admin reads the trail across every event
+  PASS  an admin reads any event trail without being its organiser
+  PASS  the trail cannot be written or erased over HTTP
+
+22 passed, 0 failed, 22 total
+
+
+======================================================================
+Tier 3: community voting, comments and the public API
+======================================================================
+
+community voting counts everyone once and the wrong people never
+  PASS  a signed-in visitor votes, the count rises, and the gallery shows it
+  PASS  the same account cannot vote twice
+  PASS  a vote can be taken back, once
+  PASS  your own team, the judges, the organiser and an admin are all refused
+  PASS  voting needs an account, and a draft answers like a missing project
+  PASS  the community poll ranks by votes with shared ranks on ties
+  PASS  votes never reach the judged standings
+
+comments are public to read, accountable to write
+  PASS  anyone reads, only an account writes, and threads stay one level
+  PASS  an empty comment and a parent from another project are refused
+  PASS  an author takes back their words; the placeholder says so
+  PASS  the organiser moderates, the trail records it, a stranger cannot
+  PASS  a removed comment cannot be removed again, and drafts take no comments
+  PASS  a chattering account hits its own ceiling, nobody else theirs
+
+the public API shows exactly what is public
+  PASS  the index names its endpoints and takes no verbs but GET
+  PASS  an event answers with its public face and nothing else
+  PASS  event projects are submitted work only, votes attached, roster withheld
+  PASS  the poll and the comments read the same through v1 as anywhere
+  PASS  the keyless surface has a ceiling per address
+
+18 passed, 0 failed, 18 total
+
+
+======================================================================
+TOTAL: 255 passed, 0 failed
+RESULT: Tier 1, Tier 2 and Tier 3 acceptance PASSED
 ======================================================================

@@ -13,6 +13,7 @@
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
 import { createApp } from '../app.js';
+import { LIMITS, resetRateLimits } from '../middlewares/rateLimit.js';
 
 let replset;
 let server;
@@ -26,6 +27,18 @@ export async function startTestServer() {
     // constraint, the unique email). Mongoose builds these lazily otherwise,
     // which makes duplicate-key assertions flaky.
     await Promise.all(Object.values(mongoose.models).map((m) => m.syncIndexes()));
+
+    // The suites hammer the API far harder than any person would, which is the
+    // point of them. The shipped ceilings are exercised deliberately in
+    // stageI.abuse.mjs, which tightens these and puts them back; everywhere
+    // else they are lifted out of the way so a rate limit cannot masquerade as
+    // a broken endpoint.
+    LIMITS.loginEmail.limit = 100_000;
+    LIMITS.loginIp.limit = 100_000;
+    LIMITS.register.limit = 100_000;
+    LIMITS.write.limit = 100_000;
+    LIMITS.comment.limit = 100_000;
+    LIMITS.publicRead.limit = 100_000;
 
     const app = createApp();
     await new Promise((resolve) => {
@@ -46,6 +59,9 @@ export async function stopTestServer() {
 export async function resetDatabase() {
     const { collections } = mongoose.connection;
     await Promise.all(Object.values(collections).map((c) => c.deleteMany({})));
+    // Counters live in memory, not in Mongo, so wiping the database alone
+    // would carry one group's attempts into the next.
+    resetRateLimits();
 }
 
 /**

@@ -34,9 +34,15 @@ export const errorHandler = (err, req, res, next) => { // eslint-disable-line no
 		console.error(`${req.method} ${req.originalUrl} ->`, err);
 	}
 
+	// A rate limiter says how long to wait; without the header a client can
+	// only guess, and guessing means retrying immediately.
+	if (statusCode === 429 && err.retryAfter) {
+		res.set('Retry-After', String(err.retryAfter));
+	}
+
 	res.status(statusCode).json({
 		success: false,
-		error: mapped ? mapped.error : err.name || 'InternalServerError',
+		error: mapped ? mapped.error : statusCode === 429 ? 'TooManyRequests' : err.name || 'InternalServerError',
 		// Never leak an internal exception message on a 500.
 		message: statusCode >= 500 ? 'An unexpected error occurred' : mapped ? mapped.message : err.message,
 	});

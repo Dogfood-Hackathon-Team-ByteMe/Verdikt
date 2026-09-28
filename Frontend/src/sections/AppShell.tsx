@@ -20,6 +20,7 @@ import { AccountMenu } from './AccountMenu'
 const links = [
   { to: '/projects', label: 'Projects' },
   { to: '/events', label: 'Events' },
+  { to: '/community', label: 'Community' },
   { to: '/dashboard', label: 'Dashboard', authOnly: true },
   { to: '/judge', label: 'Judge', authOnly: true },
   { to: '/organizer', label: 'Organize', authOnly: true },
@@ -83,7 +84,9 @@ export function AppShell({
       <footer className="border-t-2 border-ink py-6">
         <Container className="flex flex-wrap items-center justify-between gap-3 font-mono text-[0.72rem] uppercase tracking-[0.05em] text-subtle">
           <span>Verdikt &middot; MIT</span>
-          <Link to="/" className="hover:text-blue">
+          {/* -my-1 keeps the footer the same height while the padding lifts
+              the hit area over the 24px minimum. */}
+          <Link to="/" className="-my-1 inline-block py-1 hover:text-blue">
             Back to the event page
           </Link>
         </Container>

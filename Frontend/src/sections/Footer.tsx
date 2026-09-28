@@ -35,7 +35,11 @@ export function Footer() {
               <div className="label-mono text-red">{col.title}</div>
               <ul className="mt-4 flex flex-col gap-2">
                 {col.links.map((l) => {
-                  const className = 'font-mono text-[0.85rem] text-muted transition-colors hover:text-blue'
+                  // inline-block + vertical padding, so the hit area clears the
+                  // 24px minimum without the link text moving. The list's own
+                  // gap-2 absorbs the extra height.
+                  const className =
+                    'inline-block py-[3px] font-mono text-[0.85rem] text-muted transition-colors hover:text-blue'
                   const external = l.href.startsWith('http')
                   return (
                     <li key={l.href}>

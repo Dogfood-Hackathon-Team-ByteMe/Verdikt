@@ -1,12 +1,12 @@
 /**
  * Hero — opener on the graph-paper ground: a bold headline and mono subtext
- * with the two CTAs on the left, a live leaderboard card (LiveBoard) on the
+ * with the two CTAs on the left, the interactive tier ladder (Isometric) on the
  * right, and the figures row (Stats) underneath. The headline rises word by word.
  */
 import type { HackEvent } from '../api'
 import { pad, useCountdown } from '../hooks/useCountdown'
 import { Badge, Button, Container } from '../ui'
-import { LiveBoard } from './LiveBoard'
+import { Isometric } from './Isometric'
 import { Stats } from './Stats'
 
 function Words({ text, start = 0, className }: { text: string; start?: number; className?: string }) {
@@ -66,7 +66,7 @@ export function Hero({ event, judges }: { event?: HackEvent; judges?: number }) 
         </div>
 
         <div className="lg:col-span-5">
-          <LiveBoard className="mx-auto max-w-[400px] shadow-[6px_6px_0_var(--color-ink)]" />
+          <Isometric className="mx-auto max-w-[400px]" />
         </div>
       </Container>
 

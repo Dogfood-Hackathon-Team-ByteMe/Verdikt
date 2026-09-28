@@ -1,4 +1,6 @@
 import * as eventService from "../services/EventService.js";
+import * as auditService from "../services/AuditService.js";
+import { ACTIONS } from "../services/AuditService.js";
 
 export const create = async (req, res, next) => {
 	try {
@@ -62,6 +64,14 @@ export const update = async (req, res, next) => {
 			req.body,
 			req.user,
 		);
+		// The field names only -- values can be long, and what matters in a
+		// dispute is that the rubric or the deadline moved, and when.
+		await auditService.record(req, ACTIONS.EVENT_UPDATED, {
+			eventId: req.params.id,
+			targetType: "Event",
+			targetId: req.params.id,
+			meta: { fields: Object.keys(req.body ?? {}) },
+		});
 		res.json({
 			success: true,
 			data: updated,

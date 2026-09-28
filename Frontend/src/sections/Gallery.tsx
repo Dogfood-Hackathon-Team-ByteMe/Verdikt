@@ -27,9 +27,10 @@ function useDebounced<T>(value: T, ms = 200) {
  * find its place in the grid, and they are the same four the rest of the kit
  * uses, so nothing new is invented here.
  *
- * `dark:brightness-125` lifts the three dark-backed tones off a near-black
- * page. Yellow is already bright enough and would blow out, so it is the one
- * tone left alone — its contrast comes from a blue arrow instead of a white one.
+ * No per-tone brightness filter in dark mode: index.css already swaps in
+ * lighter blue/red/green for dark, so filtering on top of that lightened the
+ * cards twice and left them looking neon with washed-out white text. The dark
+ * palette is the correction; the cards just use it.
  */
 type EntryTone = 'blue' | 'yellow' | 'red' | 'green'
 
@@ -45,7 +46,7 @@ const TONE_STYLES: Record<EntryTone, {
   liveDot: string
 }> = {
   blue: {
-    card: 'dark:brightness-125',
+    card: '',
     chip: 'bg-white/20 text-white',
     meta: 'text-white/75',
     body: 'text-white/85',
@@ -63,7 +64,7 @@ const TONE_STYLES: Record<EntryTone, {
     liveDot: 'bg-green',
   },
   red: {
-    card: 'dark:brightness-125',
+    card: '',
     chip: 'bg-white/20 text-white',
     meta: 'text-white/75',
     body: 'text-white/85',
@@ -72,7 +73,7 @@ const TONE_STYLES: Record<EntryTone, {
     liveDot: 'bg-white',
   },
   green: {
-    card: 'dark:brightness-125',
+    card: '',
     chip: 'bg-white/20 text-white',
     meta: 'text-white/75',
     body: 'text-white/85',
@@ -94,6 +95,15 @@ export function Gallery({ tracks, eventId }: { tracks: Track[]; eventId?: string
   )
   const all = useApi(() => api.listProjects({ event_id: eventId }), [eventId])
   const [open, setOpen] = useState<Project | null>(null)
+  /**
+   * Newest first, or most-voted first. Sorted here rather than server-side
+   * because the list is already in hand and the API's own order (newest) is
+   * the one most pages want -- adding a sort parameter for one control would
+   * push ranking logic into three more places.
+   */
+  const [sort, setSort] = useState<'recent' | 'votes'>('recent')
+  const shown =
+    sort === 'votes' ? [...(data ?? [])].sort((a, b) => b.vote_count - a.vote_count) : (data ?? [])
   /**
    * The track's name. `tracks` only covers the event whose chips are on
    * screen, so a project from another event would previously render its raw
@@ -119,6 +129,14 @@ export function Gallery({ tracks, eventId }: { tracks: Track[]; eventId?: string
             </Chip>
           ))}
         </div>
+        <div className="flex flex-wrap justify-center gap-2" role="group" aria-label="Sort entries">
+          <Chip active={sort === 'recent'} onClick={() => setSort('recent')}>
+            Newest
+          </Chip>
+          <Chip active={sort === 'votes'} onClick={() => setSort('votes')}>
+            Most voted
+          </Chip>
+        </div>
         <div className="flex items-center gap-3 font-mono text-[0.7rem] uppercase tracking-[0.1em] text-subtle" aria-live="polite">
           {error ? 'Could not load entries. Check the API is running, then refresh.' : loading && !data ? 'Loading…' : `${data?.length ?? 0} entries`}
           {usingMockData && <Badge variant="outline">Sample data</Badge>}
@@ -126,7 +144,7 @@ export function Gallery({ tracks, eventId }: { tracks: Track[]; eventId?: string
       </Reveal>
 
       <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {(data ?? []).map((p, i) => {
+        {shown.map((p, i) => {
           const tone = TONE_CYCLE[i % TONE_CYCLE.length]
           const t = TONE_STYLES[tone]
           return (
@@ -141,7 +159,19 @@ export function Gallery({ tracks, eventId }: { tracks: Track[]; eventId?: string
                   </span>
                 </div>
                 <h3 className="mt-6 text-[1.45rem] font-medium leading-tight tracking-[-0.04em]">{p.title}</h3>
-                <div className={cn('text-sm', t.meta)}>{p.team}</div>
+                <div className={cn('flex items-center justify-between gap-2 text-sm', t.meta)}>
+                  <span>{p.team}</span>
+                  {/* Community applause, shown once it exists. The judged
+                      score never appears on a card; this number is public. */}
+                  {p.vote_count > 0 && (
+                    <span className="flex items-center gap-1 font-mono text-[0.68rem]" title={`${p.vote_count} community votes`}>
+                      <svg viewBox="0 0 24 24" className="h-3 w-3" fill="currentColor" aria-hidden="true">
+                        <path d="M12 4l8 14H4z" />
+                      </svg>
+                      {p.vote_count}
+                    </span>
+                  )}
+                </div>
                 <p className={cn('mt-3 flex-1 text-sm', t.body)}>{p.summary}</p>
                 <div className="mt-5 flex items-center justify-between gap-2">
                   <div className="flex flex-wrap gap-1">

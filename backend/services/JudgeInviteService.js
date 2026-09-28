@@ -50,6 +50,10 @@ const loadTrackAsOrganiser = async (trackId, user) => {
 /** The organiser's view of an invite: everything, including the token. */
 const forOrganiser = (invite) => ({
 	_id: invite._id,
+	// Carried so the caller knows which event's trail this belongs in. Without
+	// it an audit row for an invite has no event, and the organiser who created
+	// the invite cannot see their own action.
+	eventId: invite.eventId,
 	trackId: invite.trackId,
 	email: invite.email,
 	token: invite.token,

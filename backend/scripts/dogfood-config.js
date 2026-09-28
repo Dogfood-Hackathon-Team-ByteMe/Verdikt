@@ -103,7 +103,9 @@ async function main() {
 
     // This REPLACES the whole [routes] section, so the template below has to
     // list every route worth documenting -- anything added to .dogfood.toml by
-    // hand disappears the next time this runs.
+    // hand disappears the next time this runs. Adding a route to the API means
+    // adding it HERE, not just to the file; the T3 routes below were nearly
+    // lost that way.
     toml = upsertSection(
         toml,
         'routes',
@@ -134,6 +136,12 @@ async function main() {
             'judge_invites    = "GET|POST /api/tracks/:id/judge-invites"',
             'judge_invite     = "GET /api/judge-invites/token/:token"',
             'judge_accept     = "POST /api/judge-invites/token/:token/accept"',
+            'vote             = "POST|DELETE /api/projects/:id/vote"',
+            'community        = "GET /api/events/:id/community"',
+            'comments         = "GET|POST /api/projects/:id/comments"',
+            'comment          = "DELETE /api/comments/:id"',
+            'audit            = "GET /api/events/:id/audit"',
+            'public_api       = "GET /api/v1"',
             'health           = "GET /health"',
             '',
             '# Bare paths used by run.py. It appends nothing and sends no method,',
