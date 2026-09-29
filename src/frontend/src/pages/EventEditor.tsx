@@ -171,7 +171,12 @@ export default function EventEditor() {
         </div>
 
         <div className="mt-8">
-          {tab === "details" && <DetailsTab event={e} onSaved={event.reload} />}
+          {tab === "details" && (
+            <>
+              <DetailsTab event={e} onSaved={event.reload} />
+              <DeleteEventCard event={e} />
+            </>
+          )}
           {tab === "tracks" && <TracksTab event={e} onChanged={event.reload} />}
           {tab === "prizes" && <PrizesTab event={e} onSaved={event.reload} />}
           {tab === "questions" && (
@@ -191,6 +196,57 @@ export default function EventEditor() {
         </Button>
       </Container>
     </AppShell>
+  );
+}
+
+/**
+ * Deleting takes every team, entry, track and ballot with it, so it asks for
+ * the event's name typed out rather than a single click.
+ */
+function DeleteEventCard({ event }: { event: HackEvent }) {
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const destroy = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.deleteEvent(event.id);
+      // The organiser's own role in the event goes too; re-read everything.
+      window.location.assign("/organizer");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not delete the event.");
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card tone="paper" className="mt-8 p-6 ring-1 ring-danger/40">
+      <h2 className="headline text-[1.25rem]">Delete this event</h2>
+      <p className="mt-2 max-w-2xl font-mono text-[0.82rem] text-muted">
+        Removes the event with every team, entry, track, ballot and judge
+        appointment in it. Certificates already issued stay verifiable. This
+        cannot be undone.
+      </p>
+      {error && <Alert className="mt-4">{error}</Alert>}
+      <div className="mt-5 flex flex-wrap items-end gap-3">
+        <Field
+          className="min-w-[16rem] flex-1"
+          label={`Type "${event.name}" to confirm`}
+          value={confirm}
+          disabled={busy}
+          onChange={(ev) => setConfirm(ev.target.value)}
+        />
+        <Button
+          variant="outline"
+          disabled={busy || confirm.trim() !== event.name.trim()}
+          onClick={() => void destroy()}
+        >
+          {busy ? "Deleting..." : "Delete event"}
+        </Button>
+      </div>
+    </Card>
   );
 }
 

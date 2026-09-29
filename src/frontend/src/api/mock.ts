@@ -301,6 +301,7 @@ export const mockApi: VerdiktApi = {
     return delay(found)
   },
 
+  deleteTeam: async () => {},
   leaveTeam: (teamId, userId) => {
     const team = teams.find((t) => t.id === teamId)
     if (!team) return Promise.reject(new ApiError('Team not found', 404))
@@ -340,6 +341,7 @@ export const mockApi: VerdiktApi = {
     return delay(created)
   },
 
+  deleteEvent: async () => {},
   updateEvent: (_id, input: EventDraft) => {
     Object.assign(mockEvent, {
       ...(input.name !== undefined ? { name: input.name } : {}),

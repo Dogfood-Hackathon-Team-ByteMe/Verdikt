@@ -73,6 +73,7 @@ export interface VerdiktApi {
 
   /** Leave a team. Passing your own id is how a member removes themselves. */
   leaveTeam(teamId: string, userId: string): Promise<Team>
+  deleteTeam(id: string): Promise<void>
   deleteProject(id: string): Promise<void>
 
   // --- Organizer ----------------------------------------------------------
@@ -81,6 +82,7 @@ export interface VerdiktApi {
   getEvent(id: string): Promise<HackEvent | null>
   createEvent(input: EventDraft & { name: string; description: string; submissions_close: string }): Promise<HackEvent>
   updateEvent(id: string, input: EventDraft): Promise<HackEvent>
+  deleteEvent(id: string): Promise<void>
   createTrack(input: { event_id: string; name: string; description?: string }): Promise<Track>
   updateTrack(id: string, input: { name?: string; description?: string }): Promise<Track>
   deleteTrack(id: string): Promise<void>

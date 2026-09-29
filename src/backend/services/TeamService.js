@@ -3,6 +3,14 @@ import * as teamRepository from "../repositories/TeamRepository.js";
 import * as userRepository from "../repositories/UserRepository.js";
 import * as eventRepository from "../repositories/EventRepository.js";
 import User from "../models/User.js";
+import Project from "../models/Project.js";
+import Score from "../models/Score.js";
+import Vote from "../models/Vote.js";
+import Comment from "../models/Comment.js";
+import Assignment from "../models/Assignment.js";
+import Result from "../models/Result.js";
+import Invite from "../models/Invite.js";
+import JoinRequest from "../models/JoinRequest.js";
 import { assertCanParticipate, isJudgeOf, isOrganiserOf } from "../utils/eventRoles.js";
 
 // ─── Private helpers ─────────────────────────────────────────────────────────
@@ -149,7 +157,29 @@ export const deleteTeam = async (id, requestingUser) => {
 		);
 	}
 
-	return await teamRepository.deleteById(id);
+	// Take the team's entry and everything hanging off it with it, so the
+	// gallery and the standings never show a project with no team. Certificates
+	// are kept: they are signed, self-contained records meant to stay verifiable.
+	const projects = await Project.find({ teamId: id }).select("_id");
+	const projectIds = projects.map((p) => p._id);
+	const memberIds = team.members.map((m) => m._id || m);
+
+	await runInTransaction(async (session) => {
+		const opts = session ? { session } : {};
+		// Sequential: a transaction's session cannot run operations in parallel.
+		if (projectIds.length) {
+			const byProject = { projectId: { $in: projectIds } };
+			for (const Model of [Score, Vote, Comment, Assignment, Result]) {
+				await Model.deleteMany(byProject, opts);
+			}
+			await Project.deleteMany({ _id: { $in: projectIds } }, opts);
+		}
+		await Invite.deleteMany({ teamId: id }, opts);
+		await JoinRequest.deleteMany({ teamId: id }, opts);
+		await User.updateMany({ _id: { $in: memberIds } }, { $pull: { participatingIn: team.eventId } }, opts);
+		await teamRepository.deleteById(id, session);
+	});
+	return { deleted: true };
 };
 
 // ─── Member management — dynamic limits + hasMinimumMembers sync ──────────────

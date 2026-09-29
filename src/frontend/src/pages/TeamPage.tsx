@@ -6,12 +6,12 @@
  * refuses regardless.
  */
 import { useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../auth/AuthProvider'
 import { useApi } from '../hooks/useApi'
 import { AppShell, PageHeading } from '../sections/AppShell'
-import { Alert, Badge, Button, Card, Container, Icon } from '../ui'
+import { Alert, Badge, Button, Card, Container, Field, Icon } from '../ui'
 
 export default function TeamPage() {
   const { id = '' } = useParams()
@@ -25,6 +25,7 @@ export default function TeamPage() {
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [leaving, setLeaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const isLeader = Boolean(user && team.data && team.data.leader_id === user.id)
   const full = Boolean(team.data && event.data && team.data.members.length >= event.data.max_team_size)
@@ -82,6 +83,20 @@ export default function TeamPage() {
     }
   }
 
+  const destroy = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      await api.deleteTeam(id)
+      // The event enrolment goes too, so the dashboard must re-read.
+      window.location.assign('/dashboard')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not delete the team.')
+      setBusy(false)
+      setDeleting(false)
+    }
+  }
+
   if (team.loading && !team.data) {
     return (
       <AppShell>
@@ -116,7 +131,11 @@ export default function TeamPage() {
 
         {error && <Alert className="mt-8">{error}</Alert>}
 
-        <div className="mt-10 grid gap-5 lg:grid-cols-2">
+        {user && team.data.members.some((m) => m.id === user.id) && (
+          <ProjectCard teamId={id} projectId={team.data.project_id ?? null} />
+        )}
+
+        <div className="mt-5 grid gap-5 lg:grid-cols-2">
           <Card tone="paper" className="p-6">
             <div className="label-mono text-red">Members</div>
             <ul className="mt-5 flex flex-col divide-y divide-line">
@@ -223,8 +242,87 @@ export default function TeamPage() {
               </Button>
             )
           )}
+
+          {isLeader && (
+            deleting ? (
+              <>
+                <span className="font-mono text-[0.8rem] text-danger">
+                  Delete this team and its project for everyone? This cannot be undone.
+                </span>
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => void destroy()}>
+                  {busy ? 'Deleting...' : 'Yes, delete team'}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setDeleting(false)}>Cancel</Button>
+              </>
+            ) : (
+              <Button size="sm" variant="ghost" onClick={() => setDeleting(true)}>
+                Delete team
+              </Button>
+            )
+          )}
         </div>
       </Container>
     </AppShell>
+  )
+}
+
+/**
+ * The team's entry: a link to it once it exists, otherwise a one-field form to
+ * start the draft. Any member may start it; the server allows one per team and
+ * refuses once the event has closed, and its message is shown verbatim.
+ */
+function ProjectCard({ teamId, projectId }: { teamId: string; projectId: string | null }) {
+  const navigate = useNavigate()
+  const [title, setTitle] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const start = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      const project = await api.createProject({ team_id: teamId, title: title.trim() })
+      navigate(`/projects/${project.id}/edit`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not start the project.')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card tone="paper" className="mt-10 p-6">
+      <div className="label-mono text-red">Your project</div>
+      {projectId ? (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
+          <p className="font-mono text-[0.85rem] text-muted">
+            Your team has an entry. Finish it and submit before the deadline.
+          </p>
+          <Button href={`/projects/${projectId}/edit`} icon="arrowRight">
+            Open your project
+          </Button>
+        </div>
+      ) : (
+        <form
+          className="mt-4 flex flex-wrap items-end gap-3"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (title.trim()) void start()
+          }}
+        >
+          <Field
+            className="min-w-[16rem] flex-1"
+            label="Project title"
+            hint="You can change it later. Everything else is filled in on the next page."
+            value={title}
+            disabled={busy}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+          <Button type="submit" disabled={busy || !title.trim()} icon="arrowRight">
+            {busy ? 'Starting...' : 'Start your project'}
+          </Button>
+        </form>
+      )}
+      {error && <Alert className="mt-4">{error}</Alert>}
+    </Card>
   )
 }

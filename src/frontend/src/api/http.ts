@@ -210,6 +210,9 @@ export function createHttpApi(baseUrl: string): VerdiktApi {
     unsubmitProject: async (id) => toProject(await post(routes.unsubmitProject(id))),
 
     leaveTeam: async (teamId, userId) => toTeam(await unwrap(await send('DELETE', routes.teamMember(teamId, userId)))),
+    deleteTeam: async (id) => {
+      await unwrap(await send('DELETE', routes.team(id)))
+    },
 
     deleteProject: async (id) => {
       await unwrap<void>(await send('DELETE', routes.project(id)))
@@ -233,6 +236,9 @@ export function createHttpApi(baseUrl: string): VerdiktApi {
 
     createEvent: async (input) => toHackEvent(await post(routes.events, fromEventDraft({ ...input }))),
 
+    deleteEvent: async (id) => {
+      await unwrap(await send('DELETE', routes.event(id)))
+    },
     updateEvent: async (id, input: EventDraft) =>
       toHackEvent(await put(routes.event(id), fromEventDraft({ ...input }))),
 

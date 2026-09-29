@@ -1,6 +1,21 @@
 import { runInTransaction } from '../utils/transaction.js';
 import * as eventRepository from "../repositories/EventRepository.js";
 import * as userRepository from "../repositories/UserRepository.js";
+import User from "../models/User.js";
+import Track from "../models/Track.js";
+import Team from "../models/Team.js";
+import Project from "../models/Project.js";
+import Score from "../models/Score.js";
+import Vote from "../models/Vote.js";
+import Comment from "../models/Comment.js";
+import Assignment from "../models/Assignment.js";
+import Result from "../models/Result.js";
+import JudgeApplication from "../models/JudgeApplication.js";
+import JudgeInvite from "../models/JudgeInvite.js";
+import Webhook from "../models/Webhook.js";
+import WebhookDelivery from "../models/WebhookDelivery.js";
+import Invite from "../models/Invite.js";
+import JoinRequest from "../models/JoinRequest.js";
 
 // Helper: check if requestingUser is the organiser of a specific event.
 // Uses the User's organiserIn array — the single source of truth.
@@ -242,12 +257,35 @@ export const deleteEvent = async (id, requestingUser) => {
 
 	assertIsOrganiserOrAdmin(requestingUser, id, "delete");
 
+	// Everything that belongs to the event goes with it, so nothing is left
+	// pointing at an event that no longer exists. Kept: certificates (signed,
+	// self-contained records meant to stay verifiable) and the audit trail,
+	// which is append-only by design.
+	const tracks = await Track.find({ eventId: id }).select("_id");
+	const trackIds = tracks.map((t) => t._id);
+	const teams = await Team.find({ eventId: id }).select("_id");
+	const teamIds = teams.map((t) => t._id);
+
 	await runInTransaction(async (session) => {
-		await eventRepository.deleteById(id, session);
-		if (event.organiserId) {
-			const organiserId = event.organiserId._id || event.organiserId;
-			await userRepository.removeOrganiserIn(organiserId, id, session);
+		const opts = session ? { session } : {};
+		const byEvent = { eventId: id };
+		// Sequential: a transaction's session cannot run operations in parallel.
+		for (const Model of [
+			Score, Vote, Comment, Assignment, Result, Project, JudgeApplication,
+			JudgeInvite, Webhook, WebhookDelivery, Track, Team,
+		]) {
+			await Model.deleteMany(byEvent, opts);
 		}
+		if (teamIds.length) {
+			await Invite.deleteMany({ teamId: { $in: teamIds } }, opts);
+			await JoinRequest.deleteMany({ teamId: { $in: teamIds } }, opts);
+		}
+		await User.updateMany(
+			{},
+			{ $pull: { participatingIn: event._id, organiserIn: event._id, judgeIn: { $in: trackIds } } },
+			opts,
+		);
+		await eventRepository.deleteById(id, session);
 	});
 };
 
