@@ -149,6 +149,24 @@ the event and writes `Track.judges`, `User.judgeIn` and `Event.judgeIds`
 together. Taking a judge off their last track in an event also removes them
 from `Event.judgeIds` and drops their unscored assignments.
 
+### Webhook / WebhookDelivery (T4)
+`Webhook`: `eventId`, `url`, wanted `events` (empty = all), a server-minted
+`secret` the deliveries are HMAC-signed with, `active`, `createdBy`.
+`WebhookDelivery` keeps one row per payload: the exact `body` string that was
+signed (stored as the string, so a redelivery signs byte-for-byte the same
+bytes), `status` (`pending`/`delivered`/`failed`), `attempts`,
+`responseStatus`, `error`, `deliveredAt`. Indexed by webhook and by event,
+newest first.
+
+### Certificate / SigningKey (T4)
+`SigningKey`: the instance's one Ed25519 keypair (PEM), minted on first use;
+a unique index on its fixed name makes concurrent first-writers collide so
+exactly one keypair ever exists. `Certificate`: unique `serial`, `eventId`,
+`kind` (`participation`/`placement`/`judge`), the frozen `recipientName`, the
+exact signed `record` string and its base64 `signature`. A unique index on
+`(eventId, kind, recipientUserId, projectId)` makes issuing idempotent at the
+database, not in a check a race could pass.
+
 ## Denormalisation, and what it costs
 
 Membership is stored twice on purpose: `Team.members` holds users, and each
@@ -164,6 +182,15 @@ not lost user data, but run the replica set for anything real.
 
 ## Import and export
 
+- **Bulk export (T4)**: `GET /api/events/:id/export` — organizer only. The
+  whole event as one JSON bundle: settings, rubric, tracks, panel, teams,
+  entries and every ballot, with people referenced by email and name only.
+  No password hash or session token ever travels.
+- **Bulk import (T4)**: `POST /api/events/import` rebuilds an event from a
+  bundle; the importer becomes its organiser. An email that already has an
+  account here is linked to it; one that does not gets a locked account (a
+  random password nobody knows), because an import file must not be able to
+  mint sign-in credentials for someone else.
 - **Export**: `GET /api/export.csv?eventId=<id>` — organizer or admin only. One
   row per criterion per ballot: judge name, judge email, project, team, track,
   criterion, score, comment.

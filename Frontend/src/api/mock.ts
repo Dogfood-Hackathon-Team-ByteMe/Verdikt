@@ -28,6 +28,9 @@ import type {
   Standings,
   Team,
   Track,
+  Certificate,
+  Webhook,
+  WebhookDelivery,
 } from './types'
 import { ApiError } from './unwrap'
 
@@ -737,4 +740,20 @@ export const mockApi: VerdiktApi = {
     notifications = notifications.map((n) => (n.id === id ? { ...n, is_read: true } : n))
     return delay(undefined)
   },
+
+  // --- T4. The mock has no receiver, no signing key and no second instance,
+  // so these answer with empty lists and honest refusals.
+  listWebhooks: () => delay([] as Webhook[]),
+  createWebhook: () => Promise.reject(new ApiError('Webhooks need the real backend', 501)),
+  deleteWebhook: () => delay(undefined),
+  listWebhookDeliveries: () => delay([] as WebhookDelivery[]),
+  redeliverWebhook: () => Promise.reject(new ApiError('Webhooks need the real backend', 501)),
+
+  listCertificates: () => delay([] as Certificate[]),
+  issueCertificates: () => Promise.reject(new ApiError('Certificates need the real backend', 501)),
+  myCertificates: () => delay([] as Certificate[]),
+  verifyCertificate: () => Promise.reject(new ApiError('No certificate with that serial', 404)),
+
+  exportEvent: () => Promise.reject(new ApiError('Export needs the real backend', 501)),
+  importEvent: () => Promise.reject(new ApiError('Import needs the real backend', 501)),
 }

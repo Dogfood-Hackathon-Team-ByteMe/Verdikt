@@ -120,6 +120,31 @@ The project's public comment thread, oldest first. A removed comment keeps its
 slot with a placeholder body and a `removed: true` flag, so replies still have
 their parent.
 
+### `GET /api/v1/events/:id/embed`
+
+The event's gallery as one self-contained HTML page — no script, no cookies,
+no external asset — made to be dropped into an `<iframe>` on any site. Its
+`Content-Security-Policy: frame-ancestors *` header explicitly invites the
+framing. Drafts never appear, and every title is escaped.
+
+### `GET /api/v1/certificates/:serial`
+
+Verify a certificate or judge record by its serial. The answer carries the
+exact signed JSON `record`, its Ed25519 `signature` (base64), the instance's
+`publicKeyPem`, the parsed `details`, and `valid` — the server's own check.
+Nothing stops you re-running the verification offline with any Ed25519
+implementation; the signature is over the record's exact bytes.
+
+### `GET /api/v1/keys/current`
+
+The instance's Ed25519 public key (PEM), for verifying certificates offline.
+
+### `GET /api/v1/openapi.json`
+
+The OpenAPI 3.0 description of the **whole** HTTP surface — this keyless one
+and the session API the frontend drives, which between them cover every
+action the UI can take.
+
 ## What is deliberately NOT here
 
 - **Standings and ballots.** The judged ranking, per-judge scores and exports

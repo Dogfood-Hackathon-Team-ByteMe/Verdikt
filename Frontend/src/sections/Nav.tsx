@@ -6,7 +6,7 @@
  */
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Button, Container, Icon, Logo, ThemeToggle, cn } from '../ui'
+import { Button, Container, Icon, Logo, ThemeCord, cn } from '../ui'
 import { useAuth } from '../auth/AuthProvider'
 import { AccountMenu } from './AccountMenu'
 
@@ -44,43 +44,46 @@ export function Nav() {
     <header
       className={cn(
         'fixed inset-x-0 z-50 transition-colors duration-300',
-        scrolled || open ? 'border-b-2 border-ink bg-cream/95 backdrop-blur-md' : 'border-b-2 border-transparent',
+        scrolled || open ? 'border-b-2 border-ink bg-nav/95 backdrop-blur-md' : 'border-b-2 border-transparent',
       )}
       style={{ top: 'env(safe-area-inset-top, 0px)' }}
     >
-      <Container className="flex h-16 items-center justify-between gap-4">
-        <a href="#top" aria-label="Verdikt home" className="transition-transform duration-200 hover:-translate-y-0.5">
-          <Logo />
-        </a>
+      <Container className="flex h-18 items-center justify-between gap-4">
+        {/* Full header height, so the cord's `top-full` lands on the bottom
+            rule and the wire hangs off the bar rather than crossing it. */}
+        <div className="relative flex h-full shrink-0 items-center">
+          <a href="#top" aria-label="Verdikt home" className="flex items-center transition-transform duration-200 hover:-translate-y-0.5">
+            <Logo />
+          </a>
+          <ThemeCord className="right-1" solid={scrolled || open} />
+        </div>
 
         <nav aria-label="Main" className="hidden items-center gap-1 lg:flex">
           {navLinks.map((l) => {
             const className =
-              'group relative rounded-md px-3 py-2 font-mono text-[0.78rem] font-bold text-ink transition-colors duration-200 hover:text-blue'
-            // underline grows in from the left on hover
-            const underline = (
-              <span
-                className="absolute inset-x-3 bottom-1 h-[2px] origin-left scale-x-0 bg-blue transition-transform duration-300 ease-out-soft group-hover:scale-x-100"
-                aria-hidden="true"
-              />
-            )
+              'flex h-10 items-center rounded-btn px-3.5 font-mono text-[0.82rem] font-bold leading-none text-ink transition-colors duration-200 hover:bg-fog hover:text-blue'
             return isAnchor(l.href) ? (
               <a key={l.href} href={l.href} className={className}>
                 {l.label}
-                {underline}
               </a>
             ) : (
               <Link key={l.href} to={l.href} className={className}>
                 {l.label}
-                {underline}
               </Link>
             )
           })}
         </nav>
 
-        <div className="flex items-center gap-2">
-          {/* Always visible: the theme switch is a top-level control, not a menu item */}
-          <ThemeToggle />
+        <div className="flex shrink-0 items-center gap-2">
+          {/* Signed out, AccountMenu already carries "Sign in" and the yellow
+              action. Signed in it is one small avatar, which left this whole
+              side of the bar empty -- so give the account that got here from
+              a link somewhere useful to go. */}
+          {user && (
+            <Button href="/dashboard" size="sm" variant="outline" className="max-lg:hidden">
+              Dashboard
+            </Button>
+          )}
           <AccountMenu />
           <button
             type="button"

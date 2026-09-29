@@ -131,6 +131,8 @@ export default function Dashboard() {
 
         <Notifications />
 
+        <MyCertificates />
+
         <div className="mt-12 flex flex-wrap gap-3">
           <Button href="/projects" variant="outline" icon="arrowRight">
             Browse the projects
@@ -150,6 +152,49 @@ export default function Dashboard() {
         </div>
       </Container>
     </AppShell>
+  )
+}
+
+/**
+ * The certificates issued to this account (T4), each with its public
+ * verification link. Rendered only when there is at least one -- a
+ * participant mid-event has no certificate yet and no use for the space.
+ */
+function MyCertificates() {
+  const certs = useApi(() => api.myCertificates())
+  const rows = certs.data ?? []
+  if (rows.length === 0) return null
+
+  const titles: Record<string, string> = {
+    participation: 'Participation',
+    placement: 'Placement',
+    judge: 'Judge record',
+  }
+
+  return (
+    <Card tone="paper" className="mt-8 p-6">
+      <div className="label-mono text-red">Your certificates</div>
+      <p className="mt-2 font-mono text-[0.8rem] text-muted">
+        Each is signed by this instance and publicly verifiable &mdash; the link
+        works for anyone, no account needed.
+      </p>
+      <ul className="mt-4 flex flex-col gap-2">
+        {rows.map((cert) => (
+          <li
+            key={cert.id}
+            className="flex flex-wrap items-center justify-between gap-2 rounded-card bg-fog p-3 font-mono text-[0.8rem]"
+          >
+            <span className="min-w-0">
+              <span className="font-bold">{titles[cert.kind] ?? cert.kind}</span>
+              {cert.event_name && <span className="text-subtle"> &middot; {cert.event_name}</span>}
+            </span>
+            <Button size="sm" variant="outline" href={`/verify/${cert.serial}`}>
+              View and share
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </Card>
   )
 }
 

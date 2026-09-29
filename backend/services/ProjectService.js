@@ -10,6 +10,10 @@
 import * as projectRepository from "../repositories/ProjectRepository.js";
 import Event from "../models/Event.js";
 import Team from "../models/Team.js";
+import * as webhookService from "./WebhookService.js";
+
+/** The id inside a ref, whether it arrived raw or populated. */
+const refId = (ref) => (ref && ref._id ? ref._id : ref);
 
 /** Fields a client may set. Anything else in the body is ignored. */
 const WRITABLE_FIELDS = [
@@ -208,10 +212,16 @@ export const submitProject = async (id, requestingUser) => {
 
 	if (project.status === "submitted") return project; // Submitting twice is a no-op.
 
-	return await projectRepository.update(id, {
+	const saved = await projectRepository.update(id, {
 		status: "submitted",
 		submittedAt: new Date(),
 	});
+	webhookService.dispatch(refId(project.eventId), webhookService.TYPES.PROJECT_SUBMITTED, {
+		projectId: saved._id,
+		title: saved.title,
+		teamName: project.teamId?.name ?? null,
+	});
+	return saved;
 };
 
 /** Pull a submission back to draft, allowed only while the window is open. */
@@ -226,7 +236,15 @@ export const unsubmitProject = async (id, requestingUser) => {
 		}
 	}
 
-	return await projectRepository.update(id, { status: "draft", submittedAt: null });
+	const wasSubmitted = project.status === "submitted";
+	const saved = await projectRepository.update(id, { status: "draft", submittedAt: null });
+	if (wasSubmitted) {
+		webhookService.dispatch(refId(project.eventId), webhookService.TYPES.PROJECT_WITHDRAWN, {
+			projectId: saved._id,
+			title: saved.title,
+		});
+	}
+	return saved;
 };
 
 export const deleteProject = async (id, requestingUser) => {

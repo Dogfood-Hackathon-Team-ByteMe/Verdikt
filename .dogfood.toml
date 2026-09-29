@@ -9,8 +9,8 @@ license = "MIT"
 [tiers]
 # Claim only what the acceptance report proves. Every T2 feature below has
 # HTTP-level tests in backend/tests/stageF-stageH and a browser check; every
-# T3 feature has them in stageI-stageJ.
-claimed = ["T1", "T2", "T3"]
+# T3 feature has them in stageI-stageJ; every T4 feature in stageK-stageM.
+claimed = ["T1", "T2", "T3", "T4"]
 t1 = "complete"
 t2 = "complete"  # judge invites (email-bound, single use) and batch assignment
                  # (N reviews per entry, track-isolated, load-balanced);
@@ -29,13 +29,23 @@ t3 = "complete"  # anti-abuse (per-account + per-address rate limits on
                  # versioned keyless read API documented in API.md.
                  # run.py carries probes only for T1/T2; the T3 proof is the
                  # HTTP-level suites stageI + stageJ in the acceptance report.
-t4 = "none"
+t4 = "complete"  # webhooks (organizer-registered, HMAC-SHA256-signed
+                 # deliveries with a retry-and-redeliver log, never able to
+                 # break the action they announce); certificates and signed
+                 # judge participation records (Ed25519, verified keylessly at
+                 # /api/v1/certificates/:serial or offline with the public
+                 # key); an embeddable gallery widget (self-contained HTML,
+                 # /api/v1/events/:id/embed); bulk export/import (one JSON
+                 # bundle, no credentials, round-trips the ranking exactly);
+                 # and the REST API the SPA itself drives -- every UI action
+                 # -- documented as OpenAPI at /api/v1/openapi.json.
+                 # Proof: HTTP-level suites stageK-stageM in the report.
 
 [acceptance]
 report = "acceptance-report.txt"
 command = "cd backend && npm install && npm run acceptance"
-tests_total = 255
-tests_passed = 255
+tests_total = 295
+tests_passed = 295
 
 [run]
 command = "docker compose up"
@@ -76,6 +86,18 @@ comment          = "DELETE /api/comments/:id"
 audit            = "GET /api/events/:id/audit"
 public_api       = "GET /api/v1"
 health           = "GET /health"
+webhooks         = "GET|POST /api/events/:id/webhooks"
+webhook          = "DELETE /api/webhooks/:id"
+webhook_log      = "GET /api/webhooks/:id/deliveries"
+redeliver        = "POST /api/webhooks/:id/deliveries/:deliveryId/redeliver"
+certificates     = "GET|POST /api/events/:id/certificates"
+my_certificates  = "GET /api/certificates/mine"
+verify_cert      = "GET /api/v1/certificates/:serial"
+signing_key      = "GET /api/v1/keys/current"
+embed_widget     = "GET /api/v1/events/:id/embed"
+export_event     = "GET /api/events/:id/export"
+import_event     = "POST /api/events/import"
+openapi          = "GET /api/v1/openapi.json"
 
 # Bare paths used by run.py. It appends nothing and sends no method,
 # so each of these is a complete URL path.
@@ -100,7 +122,11 @@ participant = "participant@verdikt.dev"
 normalization_proof = true
 pairwise_mode = false
 threat_model = false
-api_first = false
+# api_first: the whole surface -- the session API the SPA drives plus the
+# keyless /api/v1 -- is described as OpenAPI 3.0, served by the API itself at
+# GET /api/v1/openapi.json and checked by a test that the spec names the
+# routes the app really has.
+api_first = true
 
 [portal]
 base_url = "http://localhost:8080"

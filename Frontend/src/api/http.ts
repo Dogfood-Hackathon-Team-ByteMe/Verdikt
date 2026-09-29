@@ -31,6 +31,11 @@ import {
   toStandings,
   toTeam,
   toTrack,
+  toCertificate,
+  toCertificateVerification,
+  toImportSummary,
+  toWebhook,
+  toWebhookDelivery,
 } from './adapters'
 import type { VerdiktApi } from './client'
 import type { BallotDraft, EventDraft, PlatformStats, ProjectDraft, ProjectQuery } from './types'
@@ -81,6 +86,16 @@ export const routes = {
   rejectJudgeApplication: (id: string) => `/api/judge-applications/${encodeURIComponent(id)}/reject`,
   notifications: '/api/notifications',
   notificationRead: (id: string) => `/api/notifications/${encodeURIComponent(id)}/read`,
+  webhooks: (eventId: string) => `/api/events/${encodeURIComponent(eventId)}/webhooks`,
+  webhook: (id: string) => `/api/webhooks/${encodeURIComponent(id)}`,
+  webhookDeliveries: (id: string) => `/api/webhooks/${encodeURIComponent(id)}/deliveries`,
+  redeliver: (id: string, deliveryId: string) =>
+    `/api/webhooks/${encodeURIComponent(id)}/deliveries/${encodeURIComponent(deliveryId)}/redeliver`,
+  certificates: (eventId: string) => `/api/events/${encodeURIComponent(eventId)}/certificates`,
+  myCertificates: '/api/certificates/mine',
+  verifyCertificate: (serial: string) => `/api/v1/certificates/${encodeURIComponent(serial)}`,
+  exportEvent: (eventId: string) => `/api/events/${encodeURIComponent(eventId)}/export`,
+  importEvent: '/api/events/import',
 }
 
 /** Build a query string, dropping empty values. */
@@ -367,5 +382,60 @@ export function createHttpApi(baseUrl: string): VerdiktApi {
     markNotificationRead: async (id) => {
       await patch(routes.notificationRead(id))
     },
+
+    // --- T4: webhooks -----------------------------------------------------
+    listWebhooks: async (eventId) =>
+      (await get<Record<string, unknown>[]>(routes.webhooks(eventId))).map(toWebhook),
+
+    createWebhook: async (eventId, input) =>
+      toWebhook(await post(routes.webhooks(eventId), { url: input.url, events: input.events ?? [] })),
+
+    deleteWebhook: async (id) => {
+      await unwrap<void>(await send('DELETE', routes.webhook(id)))
+    },
+
+    listWebhookDeliveries: async (webhookId) =>
+      (await get<Record<string, unknown>[]>(routes.webhookDeliveries(webhookId))).map(toWebhookDelivery),
+
+    redeliverWebhook: async (webhookId, deliveryId) =>
+      toWebhookDelivery(await post(routes.redeliver(webhookId, deliveryId))),
+
+    // --- T4: certificates -------------------------------------------------
+    listCertificates: async (eventId) =>
+      (await get<Record<string, unknown>[]>(routes.certificates(eventId))).map(toCertificate),
+
+    issueCertificates: async (eventId, input) =>
+      (
+        await post<Record<string, unknown>[]>(routes.certificates(eventId), {
+          kind: input.kind,
+          ...(input.project_id ? { projectId: input.project_id } : {}),
+          ...(input.place !== undefined ? { place: input.place } : {}),
+        })
+      ).map(toCertificate),
+
+    myCertificates: async () =>
+      (await get<Record<string, unknown>[]>(routes.myCertificates)).map(toCertificate),
+
+    verifyCertificate: async (serial) =>
+      toCertificateVerification(await get<Record<string, unknown>>(routes.verifyCertificate(serial))),
+
+    // --- T4: portability ----------------------------------------------------
+    /** The export is the bundle itself, not wrapped in the {success,data} envelope. */
+    exportEvent: async (eventId) => {
+      const res = await send('GET', routes.exportEvent(eventId))
+      if (!res.ok) {
+        const text = await res.text().catch(() => '')
+        let message = `Export failed (${res.status})`
+        try {
+          message = (JSON.parse(text) as { message?: string }).message ?? message
+        } catch {
+          /* keep the fallback */
+        }
+        throw new ApiError(message, res.status)
+      }
+      return (await res.json()) as unknown
+    },
+
+    importEvent: async (bundle) => toImportSummary(await post(routes.importEvent, bundle)),
   }
 }

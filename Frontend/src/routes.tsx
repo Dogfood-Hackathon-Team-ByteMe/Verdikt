@@ -28,6 +28,7 @@ import ProfilePage from './pages/ProfilePage'
 import ProjectsPage from './pages/ProjectsPage'
 import SubmitProject from './pages/SubmitProject'
 import TeamPage from './pages/TeamPage'
+import VerifyPage from './pages/VerifyPage'
 
 export function AppRoutes() {
   const { pathname } = useLocation()
@@ -45,6 +46,10 @@ export function AppRoutes() {
       <Route path="/projects/:id" element={<ProjectDetail />} />
       <Route path="/login" element={<AuthPage mode="signin" />} />
       <Route path="/signup" element={<AuthPage mode="signup" />} />
+
+      {/* Public on purpose: "publicly verifiable" means the person a
+          certificate is shown to needs no account here to check it. */}
+      <Route path="/verify/:serial" element={<VerifyPage />} />
 
       {/* The invite preview is public on purpose: you should be able to see
           which team invited you before deciding to make an account. */}

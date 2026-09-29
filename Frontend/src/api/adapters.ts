@@ -35,6 +35,12 @@ import type {
   Standings,
   Team,
   Track,
+  Certificate,
+  CertificateKind,
+  CertificateVerification,
+  ImportSummary,
+  Webhook,
+  WebhookDelivery,
 } from './types'
 
 /** Anything with an id, in either of the two shapes the backend emits. */
@@ -765,5 +771,73 @@ export function toJudgeInvitePreview(doc: {
     email_hint: doc.emailHint ?? '',
     status: inviteStatus(doc.status),
     expires_at: iso(doc.expiresAt),
+  }
+}
+
+// --- Tier 4: webhooks, certificates, portability ----------------------------
+
+export function toWebhook(doc: Record<string, unknown>): Webhook {
+  return {
+    id: String(doc._id ?? ''),
+    event_id: refId(doc.eventId as Ref),
+    url: String(doc.url ?? ''),
+    events: Array.isArray(doc.events) ? (doc.events as string[]) : [],
+    secret: String(doc.secret ?? ''),
+    active: doc.active !== false,
+    created_at: iso(doc.createdAt as string | undefined),
+  }
+}
+
+export function toWebhookDelivery(doc: Record<string, unknown>): WebhookDelivery {
+  const status = doc.status
+  return {
+    id: String(doc._id ?? ''),
+    type: String(doc.type ?? ''),
+    status: status === 'delivered' || status === 'failed' ? status : 'pending',
+    attempts: Number(doc.attempts ?? 0),
+    response_status: typeof doc.responseStatus === 'number' ? doc.responseStatus : null,
+    error: typeof doc.error === 'string' && doc.error ? doc.error : null,
+    created_at: iso(doc.createdAt as string | undefined),
+    delivered_at: iso(doc.deliveredAt as string | undefined),
+  }
+}
+
+const certificateKind = (value: unknown): CertificateKind =>
+  value === 'placement' || value === 'judge' ? value : 'participation'
+
+export function toCertificate(doc: Record<string, unknown>): Certificate {
+  const event = doc.eventId as { name?: string } | string | undefined
+  return {
+    id: String(doc._id ?? ''),
+    serial: String(doc.serial ?? ''),
+    kind: certificateKind(doc.kind),
+    recipient_name: String(doc.recipientName ?? ''),
+    event_name: typeof event === 'object' && event ? (event.name ?? null) : null,
+    record: String(doc.record ?? ''),
+    created_at: iso(doc.createdAt as string | undefined),
+  }
+}
+
+export function toCertificateVerification(doc: Record<string, unknown>): CertificateVerification {
+  return {
+    serial: String(doc.serial ?? ''),
+    kind: certificateKind(doc.kind),
+    valid: doc.valid === true,
+    record: String(doc.record ?? ''),
+    signature: String(doc.signature ?? ''),
+    public_key_pem: String(doc.publicKeyPem ?? ''),
+    details: (doc.details ?? {}) as CertificateVerification['details'],
+  }
+}
+
+export function toImportSummary(doc: Record<string, unknown>): ImportSummary {
+  return {
+    event_id: refId(doc.eventId as Ref),
+    name: String(doc.name ?? ''),
+    tracks: Number(doc.tracks ?? 0),
+    teams: Number(doc.teams ?? 0),
+    projects: Number(doc.projects ?? 0),
+    ballots: Number(doc.ballots ?? 0),
+    people: Number(doc.people ?? 0),
   }
 }

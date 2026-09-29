@@ -19,6 +19,9 @@ const SUITES = [
     ['Tier 2: normalization, assignment, scope, invites, exports', 'tests/stageH.panel.mjs'],
     ['Tier 3: rate limiting and the audit trail', 'tests/stageI.abuse.mjs'],
     ['Tier 3: community voting, comments and the public API', 'tests/stageJ.community.mjs'],
+    ['Tier 4: webhooks', 'tests/stageK.webhooks.mjs'],
+    ['Tier 4: certificates and signed judge records', 'tests/stageL.certificates.mjs'],
+    ['Tier 4: portability, the embed widget and the API surface', 'tests/stageM.portability.mjs'],
 ];
 
 const reportFlag = process.argv.indexOf('--report');
@@ -50,7 +53,7 @@ const say = (text) => {
 say('Verdikt acceptance report');
 say(`Generated: ${new Date().toISOString()}`);
 say(`Node: ${process.version}`);
-say('Tiers claimed: 1, 2');
+say('Tiers claimed: 1, 2, 3, 4');
 say('');
 say('Each suite drives the real Express app over HTTP against a throwaway');
 say('MongoDB replica set. No service is called directly, so every role check');
@@ -82,7 +85,7 @@ for (const [name, file] of SUITES) {
 say('');
 say('='.repeat(70));
 say(`TOTAL: ${totalPassed} passed, ${totalFailed} failed`);
-say(totalFailed === 0 ? 'RESULT: Tier 1, Tier 2 and Tier 3 acceptance PASSED' : 'RESULT: FAILED');
+say(totalFailed === 0 ? 'RESULT: Tier 1, Tier 2, Tier 3 and Tier 4 acceptance PASSED' : 'RESULT: FAILED');
 say('='.repeat(70));
 
 if (reportPath) {

@@ -55,7 +55,9 @@ export function createApp() {
         }),
     );
 
-    app.use(express.json());
+    // 10mb rather than the 100kb default: an exported event bundle (T4 import)
+    // is one JSON body carrying every entry and ballot of an event.
+    app.use(express.json({ limit: '10mb' }));
     app.use(express.urlencoded({ extended: true }));
 
     // Liveness probe, used by docker-compose's healthcheck.

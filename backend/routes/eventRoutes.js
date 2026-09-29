@@ -5,6 +5,9 @@ import * as standingsController from "../controllers/StandingsController.js";
 import * as assignmentController from "../controllers/AssignmentController.js";
 import * as auditController from "../controllers/AuditController.js";
 import * as voteController from "../controllers/VoteController.js";
+import * as webhookController from "../controllers/WebhookController.js";
+import * as certificateController from "../controllers/CertificateController.js";
+import * as portabilityController from "../controllers/PortabilityController.js";
 import { authenticate, requireAuth } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
@@ -46,6 +49,24 @@ router.get("/:id/assignments", authenticate, requireAuth, assignmentController.l
 router.post("/:id/assignments/auto", authenticate, requireAuth, assignmentController.autoAssign);
 router.post("/:id/assignments", authenticate, requireAuth, assignmentController.add);
 router.delete("/:id/assignments", authenticate, requireAuth, assignmentController.clear);
+
+// Webhooks on this event (T4). Organiser or admin only, checked in the
+// service; the rows carry each subscription's signing secret, which is the
+// organiser's own to see.
+router.get("/:id/webhooks", authenticate, requireAuth, webhookController.listForEvent);
+router.post("/:id/webhooks", authenticate, requireAuth, webhookController.create);
+
+// Certificates (T4). Issuing and the event-wide list are organiser-only;
+// each recipient reads their own at /api/certificates/mine, and anyone at
+// all verifies one at /api/v1/certificates/:serial.
+router.get("/:id/certificates", authenticate, requireAuth, certificateController.listForEvent);
+router.post("/:id/certificates", authenticate, requireAuth, certificateController.issue);
+
+// Bulk portability (T4): the organiser leaves with one JSON file, and anyone
+// signed in can rebuild an event from one, becoming its organiser here.
+// "import" must be declared before "/:id"-shaped POSTs would ever match it.
+router.get("/:id/export", authenticate, requireAuth, portabilityController.exportEvent);
+router.post("/import", authenticate, requireAuth, portabilityController.importEvent);
 
 // Only organizers/admins can create/update/delete events (further checked in service)
 router.post("/", authenticate, requireAuth, eventController.create);

@@ -30,6 +30,7 @@ import type {
   Track,
 } from "../api/types";
 import { useApi } from "../hooks/useApi";
+import { CertificatesTab, IntegrationsTab } from "./EventEditorT4";
 import { AppShell, PageHeading } from "../sections/AppShell";
 import {
   Alert,
@@ -53,6 +54,8 @@ type Tab =
   | "judges"
   | "submissions"
   | "results"
+  | "certificates"
+  | "integrations"
   | "activity";
 
 const TABS: Tab[] = [
@@ -64,6 +67,8 @@ const TABS: Tab[] = [
   "judges",
   "submissions",
   "results",
+  "certificates",
+  "integrations",
   "activity",
 ];
 
@@ -158,6 +163,8 @@ export default function EventEditor() {
               { id: "judges", label: `Judges (${e.judge_ids.length})` },
               { id: "submissions", label: "Submissions" },
               { id: "results", label: "Results" },
+              { id: "certificates", label: "Certificates" },
+              { id: "integrations", label: "Integrations" },
               { id: "activity", label: "Activity" },
             ]}
           />
@@ -174,6 +181,8 @@ export default function EventEditor() {
           {tab === "judges" && <JudgesTab event={e} onChanged={event.reload} />}
           {tab === "submissions" && <SubmissionsTab event={e} />}
           {tab === "results" && <ResultsTab event={e} />}
+          {tab === "certificates" && <CertificatesTab event={e} />}
+          {tab === "integrations" && <IntegrationsTab event={e} />}
           {tab === "activity" && <ActivityTab event={e} />}
         </div>
 

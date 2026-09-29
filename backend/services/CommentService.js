@@ -12,6 +12,7 @@
  */
 import Comment from "../models/Comment.js";
 import * as projectRepository from "../repositories/ProjectRepository.js";
+import * as webhookService from "./WebhookService.js";
 
 const notFound = (what) => Object.assign(new Error(`${what} not found`), { statusCode: 404 });
 const forbidden = (message) => Object.assign(new Error(message), { statusCode: 403 });
@@ -74,6 +75,11 @@ export const addComment = async (projectId, { body, parentId } = {}, requestingU
 		authorId: requestingUser._id,
 		body: text,
 		parentId: parent ? parent._id : null,
+	});
+	webhookService.dispatch(project.eventId, webhookService.TYPES.COMMENT_CREATED, {
+		projectId: project._id,
+		commentId: made._id,
+		author: requestingUser.name,
 	});
 	return publicShape(await made.populate("authorId", "name"));
 };

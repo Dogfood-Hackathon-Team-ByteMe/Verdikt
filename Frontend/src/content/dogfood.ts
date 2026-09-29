@@ -32,14 +32,14 @@ export const tiers: { id: string; name: string; note: string; status: TierStatus
     id: 'T3',
     name: 'Public',
     note: 'Let the crowd in, safely',
-    status: 'planned',
+    status: 'done',
     features: ['Community voting modes', 'Comments on projects', 'Results hidden while voting', 'Randomized project order', 'Rate limits and audit trail'],
   },
   {
     id: 'T4',
     name: 'Stretch',
     note: 'For teams with time left',
-    status: 'planned',
+    status: 'done',
     features: ['REST API and webhooks', 'Certificates and records', 'Signed judge participation', 'Embeddable gallery widget', 'Bulk import and export'],
   },
 ]

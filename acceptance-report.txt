@@ -1,7 +1,7 @@
 Verdikt acceptance report
-Generated: 2026-09-28T14:43:45.651Z
+Generated: 2026-09-29T06:18:05.186Z
 Node: v24.18.0
-Tiers claimed: 1, 2
+Tiers claimed: 1, 2, 3, 4
 
 Each suite drives the real Express app over HTTP against a throwaway
 MongoDB replica set. No service is called directly, so every role check
@@ -440,6 +440,87 @@ the public API shows exactly what is public
 
 
 ======================================================================
-TOTAL: 255 passed, 0 failed
-RESULT: Tier 1, Tier 2 and Tier 3 acceptance PASSED
+Tier 4: webhooks
+======================================================================
+
+registering a webhook is the organiser’s power and nobody else’s
+  PASS  the organiser registers an endpoint and gets a server-minted secret
+  PASS  the caller cannot choose their own secret
+  PASS  a participant, a judge, a stranger and a visitor are all refused
+  PASS  the organiser of a different event is a stranger here
+  PASS  a nonsense URL, a non-http scheme and an unknown type are refused
+  PASS  deleting is organiser-only, and both acts land in the audit trail
+
+deliveries are signed, filtered and recorded
+  PASS  submitting a project fires the hook with a verifiable signature
+  PASS  a subscription filtered to one type does not receive the others
+  PASS  a ballot fires the hook but never carries the scores
+  PASS  the delivery log records a landed payload as delivered
+  PASS  a dead receiver fails the delivery after retries, and the submission survives
+  PASS  a failed delivery can be redelivered by hand once the receiver is back
+  PASS  a receiver answering 500 is a failed delivery, not a delivered one
+  PASS  appointing a judge by email fires judge.appointed
+
+14 passed, 0 failed, 14 total
+
+
+======================================================================
+Tier 4: certificates and signed judge records
+======================================================================
+
+participation certificates
+  PASS  the organiser issues one per member of every submitted entry
+  PASS  issuing twice is idempotent and keeps the original serials
+  PASS  a participant, a stranger and a visitor cannot issue or list
+  PASS  a recipient sees their own certificates and only their own
+  PASS  an event with no submissions has nobody to certify
+
+placement certificates
+  PASS  the organiser places an entry and its whole team is certified with the place
+  PASS  a project from another event, a draft and a nonsense place are refused
+
+signed judge participation records
+  PASS  a judge who cast ballots gets a record naming their work; one who did not gets none
+  PASS  with no ballots at all there is nothing to certify
+
+public verification
+  PASS  anyone verifies a certificate by serial, with no account
+  PASS  the signature verifies offline with nothing but the public key
+  PASS  a tampered record fails verification
+  PASS  an unknown serial is a 404, and the v1 surface still takes no verbs but GET
+
+13 passed, 0 failed, 13 total
+
+
+======================================================================
+Tier 4: portability, the embed widget and the API surface
+======================================================================
+
+bulk export
+  PASS  the organiser gets one bundle carrying the whole event
+  PASS  no password hash and no bcrypt string travels in the bundle
+  PASS  a participant, a judge, a stranger and a visitor cannot export
+
+bulk import
+  PASS  the round trip preserves the ranking
+  PASS  the importer becomes the organiser; the original organiser is a stranger here
+  PASS  an account minted for an imported stranger cannot be signed into
+  PASS  an existing account is linked by email, not duplicated
+  PASS  garbage, a wrong format and a wrong version are refused
+
+the embeddable gallery widget
+  PASS  serves a self-contained page of submitted entries, framable anywhere
+  PASS  drafts stay out of the widget, and titles are escaped
+  PASS  an unknown event is a 404, not an empty page
+
+the documented API surface
+  PASS  serves a parseable OpenAPI spec that names the routes the app really has
+  PASS  the v1 index lists the T4 endpoints
+
+13 passed, 0 failed, 13 total
+
+
+======================================================================
+TOTAL: 295 passed, 0 failed
+RESULT: Tier 1, Tier 2, Tier 3 and Tier 4 acceptance PASSED
 ======================================================================

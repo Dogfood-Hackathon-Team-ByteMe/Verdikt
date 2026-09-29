@@ -6,6 +6,18 @@ import Event from "../models/Event.js";
 import { isJudgeOf, isOrganiserOf } from "../utils/eventRoles.js";
 import { validateBallot } from "../utils/rubric.js";
 import { inScope, outOfScopeReason, scopeFor } from "./JudgeScope.js";
+import * as webhookService from "./WebhookService.js";
+
+/**
+ * Tell the organizer's webhooks a ballot landed. Deliberately carries no
+ * scores: the receiver learns that judging moved, not what anyone scored.
+ */
+const announceBallot = (eventId, projectId, judgeId) => {
+	webhookService.dispatch(eventId, webhookService.TYPES.BALLOT_CAST, {
+		projectId,
+		judgeId,
+	});
+};
 
 /**
  * Load the event a project belongs to, and assert this user may score it.
@@ -70,7 +82,9 @@ export const createScore = async (data, requestingUser) => {
 		);
 	}
 
-	return await scoreRepository.create(data);
+	const created = await scoreRepository.create(data);
+	announceBallot(project.eventId, project._id, requestingUser._id);
+	return created;
 };
 
 /**
@@ -100,13 +114,15 @@ export const upsertScore = async (data, requestingUser) => {
 		return await scoreRepository.update(existing._id, { scores, comment });
 	}
 
-	return await scoreRepository.create({
+	const created = await scoreRepository.create({
 		judgeId: requestingUser._id,
 		eventId: project.eventId,
 		projectId: data.projectId,
 		scores,
 		comment,
 	});
+	announceBallot(project.eventId, project._id, requestingUser._id);
+	return created;
 };
 
 export const getScoreById = async (id) => {

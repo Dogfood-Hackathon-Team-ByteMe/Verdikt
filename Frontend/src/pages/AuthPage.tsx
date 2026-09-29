@@ -114,7 +114,7 @@ export default function AuthPage({ mode }: { mode: AuthMode }) {
     <div className="min-h-dvh">
       {/* Minimal chrome: the full nav would be noise on a focused task. */}
       <header className="border-b-2 border-ink">
-        <Container className="flex h-16 items-center justify-between gap-4">
+        <Container className="flex h-18 items-center justify-between gap-4">
           <Link to="/" aria-label="Verdikt home" className="transition-transform duration-200 hover:-translate-y-0.5">
             <Logo />
           </Link>

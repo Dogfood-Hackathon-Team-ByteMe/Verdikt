@@ -5,7 +5,7 @@
  * Creating an event makes you its organiser server-side (EventService adds the
  * id to your organiserIn), so the list grows as soon as the session refreshes.
  */
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../auth/AuthProvider'
@@ -31,6 +31,31 @@ export default function OrganizerHome() {
   const [close, setClose] = useState(defaultClose())
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+
+  // T4 import: pick a bundle file, rebuild the event, land in its editor.
+  const filePicker = useRef<HTMLInputElement>(null)
+  const [importing, setImporting] = useState(false)
+  const [importError, setImportError] = useState<string | null>(null)
+
+  const importBundle = async (file: File) => {
+    setImporting(true)
+    setImportError(null)
+    try {
+      const bundle: unknown = JSON.parse(await file.text())
+      const summary = await api.importEvent(bundle)
+      await refresh()
+      navigate(`/organizer/events/${summary.event_id}`)
+    } catch (e) {
+      setImportError(
+        e instanceof SyntaxError
+          ? 'That file is not JSON. Export a bundle from an event’s Integrations tab.'
+          : e instanceof Error
+            ? e.message
+            : 'Could not import the bundle.',
+      )
+      setImporting(false)
+    }
+  }
 
   const create = async () => {
     setBusy(true)
@@ -62,14 +87,38 @@ export default function OrganizerHome() {
           tail="events."
           actions={
             !creating && (
-              <Button onClick={() => setCreating(true)} icon="plus">
-                New event
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={() => setCreating(true)} icon="plus">
+                  New event
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => filePicker.current?.click()}
+                  disabled={importing}
+                >
+                  {importing ? 'Importing…' : 'Import bundle'}
+                </Button>
+              </div>
             )
           }
         >
           Set the dates, tracks, prizes and the questions every team has to answer.
+          Or import a bundle exported from any Verdikt and pick up where it left off.
         </PageHeading>
+
+        {/* Hidden picker for the import button above. */}
+        <input
+          ref={filePicker}
+          type="file"
+          accept="application/json,.json"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            e.target.value = ''
+            if (file) void importBundle(file)
+          }}
+        />
+        {importError && <Alert className="mt-6">{importError}</Alert>}
 
         {creating && (
           <Card tone="paper" className="mt-10 p-6 sm:p-7">

@@ -423,3 +423,78 @@ export interface JudgeInvitePreview {
   status: JudgeInviteStatus
   expires_at: string | null
 }
+
+// --- Tier 4: webhooks, certificates, portability ----------------------------
+
+/** One organizer-registered webhook endpoint on an event. */
+export interface Webhook {
+  id: string
+  event_id: string
+  url: string
+  /** Delivery types wanted; empty means all of them. */
+  events: string[]
+  /** The signing secret. Organizer-only; every delivery is HMAC-signed with it. */
+  secret: string
+  active: boolean
+  created_at: string | null
+}
+
+export type WebhookDeliveryStatus = 'pending' | 'delivered' | 'failed'
+
+/** One payload sent (or attempted) to one webhook. */
+export interface WebhookDelivery {
+  id: string
+  type: string
+  status: WebhookDeliveryStatus
+  attempts: number
+  response_status: number | null
+  error: string | null
+  created_at: string | null
+  delivered_at: string | null
+}
+
+export type CertificateKind = 'participation' | 'placement' | 'judge'
+
+/** One issued certificate or signed judge record. */
+export interface Certificate {
+  id: string
+  serial: string
+  kind: CertificateKind
+  recipient_name: string
+  event_name: string | null
+  /** The exact signed JSON record, parseable for display. */
+  record: string
+  created_at: string | null
+}
+
+/** What the public verification endpoint answers with. */
+export interface CertificateVerification {
+  serial: string
+  kind: CertificateKind
+  valid: boolean
+  record: string
+  signature: string
+  public_key_pem: string
+  details: {
+    event?: { id?: string; name?: string }
+    recipient?: { name?: string }
+    team?: string
+    project?: string
+    place?: number
+    role?: string
+    tracks?: string[]
+    ballotsCast?: number
+    issuedAt?: string
+  }
+}
+
+/** What importing a bundle created. */
+export interface ImportSummary {
+  event_id: string
+  name: string
+  tracks: number
+  teams: number
+  projects: number
+  ballots: number
+  people: number
+}

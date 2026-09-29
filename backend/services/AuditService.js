@@ -27,6 +27,11 @@ export const ACTIONS = {
 	ASSIGNMENTS_DEALT: "assignments.dealt",
 	ASSIGNMENTS_CLEARED: "assignments.cleared",
 	COMMENT_REMOVED: "comment.removed",
+	WEBHOOK_CREATED: "webhook.created",
+	WEBHOOK_DELETED: "webhook.deleted",
+	CERTIFICATES_ISSUED: "certificates.issued",
+	EVENT_EXPORTED: "event.exported",
+	EVENT_IMPORTED: "event.imported",
 };
 
 /** The address the request came from, as app.js's proxy setting resolves it. */

@@ -22,6 +22,12 @@ import type {
   Standings,
   Team,
   Track,
+  Certificate,
+  CertificateKind,
+  CertificateVerification,
+  ImportSummary,
+  Webhook,
+  WebhookDelivery,
 } from './types'
 
 /**
@@ -154,4 +160,29 @@ export interface VerdiktApi {
   // --- Notifications ------------------------------------------------------
   listNotifications(): Promise<Notification[]>
   markNotificationRead(id: string): Promise<void>
+
+  // --- T4: webhooks (organizer) -------------------------------------------
+  listWebhooks(eventId: string): Promise<Webhook[]>
+  createWebhook(eventId: string, input: { url: string; events?: string[] }): Promise<Webhook>
+  deleteWebhook(id: string): Promise<void>
+  listWebhookDeliveries(webhookId: string): Promise<WebhookDelivery[]>
+  /** Sign and send byte-for-byte the same body again. */
+  redeliverWebhook(webhookId: string, deliveryId: string): Promise<WebhookDelivery>
+
+  // --- T4: certificates ----------------------------------------------------
+  listCertificates(eventId: string): Promise<Certificate[]>
+  issueCertificates(
+    eventId: string,
+    input: { kind: CertificateKind; project_id?: string; place?: number },
+  ): Promise<Certificate[]>
+  /** The signed-in user's own certificates, across events. */
+  myCertificates(): Promise<Certificate[]>
+  /** Public, keyless: verify any certificate by its serial. */
+  verifyCertificate(serial: string): Promise<CertificateVerification>
+
+  // --- T4: portability ------------------------------------------------------
+  /** The whole event as one JSON bundle. Organizer only. */
+  exportEvent(eventId: string): Promise<unknown>
+  /** Rebuild an event from a bundle; the caller becomes its organiser. */
+  importEvent(bundle: unknown): Promise<ImportSummary>
 }

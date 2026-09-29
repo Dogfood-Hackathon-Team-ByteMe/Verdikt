@@ -7,8 +7,8 @@
 Open-source, self-hosted hackathon platform: sign-ups, teams, submissions,
 and judging you can audit. One command, no cloud account.
 
-[![Tests](https://img.shields.io/badge/tests-210%20passing-22c55e?style=flat-square)](#verify-it-yourself)
-[![DOGFOOD](https://img.shields.io/badge/DOGFOOD%202026-T1%20%2B%20T2%20%2B%20T3%20complete-2563eb?style=flat-square)](#whats-built)
+[![Tests](https://img.shields.io/badge/tests-295%20passing-22c55e?style=flat-square)](#verify-it-yourself)
+[![DOGFOOD](https://img.shields.io/badge/DOGFOOD%202026-all%20four%20tiers%20complete-2563eb?style=flat-square)](#whats-built)
 [![License](https://img.shields.io/badge/license-MIT-111111?style=flat-square)](LICENSE)
 [![Stack](https://img.shields.io/badge/Node%2022%20%C2%B7%20React%2018%20%C2%B7%20MongoDB%207-6b7280?style=flat-square)](#architecture)
 
@@ -166,7 +166,7 @@ Claims in this README have something behind them. Roughly in order of how long
 they take to run:
 
 ```bash
-# 210 HTTP-level tests, on a throwaway in-memory MongoDB replica set
+# 295 HTTP-level tests, on a throwaway in-memory MongoDB replica set
 cd backend && npm install && npm test
 
 # The simulation behind the table above
@@ -250,12 +250,26 @@ comment keeps its slot and says who removed it; and a versioned, keyless,
 rate-limited read API — [`API.md`](API.md) — built from allow-lists, so drafts,
 rosters and email addresses cannot leak by accident.
 
-**Tier 4: not started.** Webhooks and the rest are untouched.
+**Tier 4 — stretch: complete.** **Webhooks**: organizer-registered endpoints
+that receive the event's life — submissions, ballots (never their scores),
+panel changes, votes, comments — as HMAC-SHA256-signed deliveries with a
+retry-and-redeliver log; a dead receiver never breaks the action it announces.
+**Certificates and signed judge records**: participation, placement and
+judge-participation records signed with the instance's Ed25519 key, each with
+a public verification page (`/verify/:serial`) that needs no account and can
+be re-checked offline with nothing but the public key. **An embeddable gallery
+widget**: the event's submitted entries as one self-contained HTML page
+(`/api/v1/events/:id/embed`), made to be iframed anywhere. **Bulk export and
+import**: the whole event — settings, rubric, panel, teams, entries, every
+ballot — as one JSON bundle that carries no credentials and round-trips the
+ranking exactly, so an organizer leaves as easily as they arrived. And the
+**REST API** the SPA itself drives (every UI action goes through it) is
+documented as OpenAPI 3.0, served at `/api/v1/openapi.json`.
 
-`.dogfood.toml` claims T1, T2 and T3, because the acceptance report proves all
-three over HTTP. The bundled `run.py` checker only carries probes for T1 and
-T2, so it verifies those two and lists T3 as claimed on the strength of the
-acceptance suite.
+`.dogfood.toml` claims all four tiers, because the acceptance report proves
+all four over HTTP. The bundled `run.py` checker only carries probes for T1
+and T2, so it verifies those two and lists T3 and T4 as claimed on the
+strength of the acceptance suite.
 
 ---
 
@@ -337,7 +351,7 @@ backend/
                 standings.js    ranking, ties, unjudged entries
                 normalization.js (+ normalizationProof.js)
                 csv.js          quoting and formula defusing
-  tests/        255 HTTP-level tests (stageB … stageJ)
+  tests/        295 HTTP-level tests (stageB … stageM)
   scripts/      seed.js, import-fixtures.js, dogfood-config.js,
                 normalization-proof.js
 Frontend/       React + Vite SPA

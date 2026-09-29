@@ -7,7 +7,7 @@
  */
 import type { ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Container, Logo, ThemeToggle, cn } from '../ui'
+import { Container, Logo, ThemeCord, cn } from '../ui'
 import { useAuth } from '../auth/AuthProvider'
 import { AccountMenu } from './AccountMenu'
 
@@ -39,12 +39,27 @@ export function AppShell({
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <header className="sticky top-0 z-50 border-b-2 border-ink bg-cream/95 backdrop-blur-md">
-        <Container className="flex h-16 items-center justify-between gap-4">
-          <div className="flex items-center gap-6">
-            <Link to="/" aria-label="Verdikt home" className="transition-transform duration-200 hover:-translate-y-0.5">
-              <Logo />
-            </Link>
+      <header className="sticky top-0 z-50 border-b-2 border-ink bg-nav/95 backdrop-blur-md print:hidden">
+        <Container className="flex h-18 items-center justify-between gap-4">
+          <div className="flex h-full items-center gap-5">
+            {/* Full header height, so the cord's `top-full` lands exactly on
+                the bottom rule and the wire reads as welded to it rather than
+                crossing it. */}
+            <div className="relative flex h-full shrink-0 items-center">
+              <Link
+                to="/"
+                aria-label="Verdikt home"
+                className="flex items-center transition-transform duration-200 hover:-translate-y-0.5"
+              >
+                <Logo />
+              </Link>
+              <ThemeCord className="right-1" />
+            </div>
+
+            <span className="hidden h-7 w-px shrink-0 bg-line sm:block" aria-hidden="true" />
+
+            {/* Pills rather than underlines: every link is the same height and
+                the same shape, so the row reads as one set of controls. */}
             <nav aria-label="Main" className="hidden items-center gap-1 sm:flex">
               {links
                 .filter((l) => !l.authOnly || user)
@@ -52,26 +67,21 @@ export function AppShell({
                   <Link
                     key={l.to}
                     to={l.to}
+                    aria-current={pathname === l.to ? 'page' : undefined}
                     className={cn(
-                      'group relative rounded-md px-3 py-2 font-mono text-[0.78rem] font-bold transition-colors duration-200',
-                      pathname === l.to ? 'text-blue' : 'text-ink hover:text-blue',
+                      'flex h-10 items-center rounded-btn px-3.5 font-mono text-[0.82rem] font-bold leading-none transition-colors duration-200',
+                      pathname === l.to
+                        ? 'bg-blue-mist text-blue-ink ring-1 ring-blue/30'
+                        : 'text-ink hover:bg-fog hover:text-blue',
                     )}
                   >
                     {l.label}
-                    <span
-                      className={cn(
-                        'absolute inset-x-3 bottom-1 h-[2px] origin-left bg-blue transition-transform duration-300 ease-out-soft',
-                        pathname === l.to ? 'scale-x-100' : 'scale-x-0 group-hover:scale-x-100',
-                      )}
-                      aria-hidden="true"
-                    />
                   </Link>
                 ))}
             </nav>
           </div>
 
-          <div className="flex items-center gap-2">
-            <ThemeToggle />
+          <div className="flex shrink-0 items-center gap-2">
             <AccountMenu />
           </div>
         </Container>
@@ -81,7 +91,7 @@ export function AppShell({
 
       <main className="flex-1">{children}</main>
 
-      <footer className="border-t-2 border-ink py-6">
+      <footer className="border-t-2 border-ink py-6 print:hidden">
         <Container className="flex flex-wrap items-center justify-between gap-3 font-mono text-[0.72rem] uppercase tracking-[0.05em] text-subtle">
           <span>Verdikt &middot; MIT</span>
           {/* -my-1 keeps the footer the same height while the padding lifts

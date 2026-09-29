@@ -25,7 +25,9 @@
  * reviews are dealt, so it is safe to run again after new entries arrive or
  * new judges join.
  */
+import crypto from "crypto";
 import Assignment from "../models/Assignment.js";
+import * as webhookService from "./WebhookService.js";
 import Event from "../models/Event.js";
 import Project from "../models/Project.js";
 import Score from "../models/Score.js";
@@ -172,6 +174,12 @@ export const autoAssign = async (eventId, { reviewsPerProject } = {}, user) => {
 			eligibleJudges: panel.filter((j) => eligible(j, p)).length,
 		}));
 
+	webhookService.dispatch(eventId, webhookService.TYPES.ASSIGNMENTS_DEALT, {
+		reviewsPerProject: reviews,
+		dealt,
+		entries: projects.length,
+	});
+
 	return {
 		reviewsPerProject: reviews,
 		dealt,
@@ -262,6 +270,16 @@ export const clearAssignments = async (eventId, user) => {
 };
 
 /**
+ * Deterministic per-judge shuffle key: stable across reloads for one judge
+ * (so the queue doesn't reorder under them mid-review), but different from
+ * every other judge's, so no entry sits first or last for the whole panel --
+ * the position bias a fixed submittedAt order would otherwise hand to
+ * whoever submitted earliest.
+ */
+const shuffleKey = (judgeId, projectId) =>
+	crypto.createHash("sha256").update(`${judgeId}:${projectId}`).digest("hex");
+
+/**
  * The judge's own queue: the submitted entries they may score in this event,
  * and which scoping rule produced it. The page shows this list verbatim, so the
  * queue a judge sees and the entries the API lets them score cannot disagree.
@@ -275,8 +293,14 @@ export const queueFor = async (eventId, user) => {
 
 	const projects = await Project.find({ eventId, status: "submitted" })
 		.populate("teamId", "name")
-		.populate("trackId", "topic")
-		.sort({ submittedAt: 1, _id: 1 });
+		.populate("trackId", "topic");
 
-	return { mode: scope.mode, projects: projects.filter((p) => inScope(scope, p)) };
+	const inScopeProjects = projects.filter((p) => inScope(scope, p));
+	inScopeProjects.sort((a, b) => {
+		const ka = shuffleKey(user._id, a._id);
+		const kb = shuffleKey(user._id, b._id);
+		return ka < kb ? -1 : ka > kb ? 1 : 0;
+	});
+
+	return { mode: scope.mode, projects: inScopeProjects };
 };

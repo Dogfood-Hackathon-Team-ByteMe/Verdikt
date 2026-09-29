@@ -8,6 +8,7 @@ import Track from '../models/Track.js';
 import * as trackRepository from "../repositories/TrackRepository.js";
 import * as eventRepository from "../repositories/EventRepository.js";
 import * as userRepository from "../repositories/UserRepository.js";
+import * as webhookService from "./WebhookService.js";
 
 /**
  * Hide judges' email addresses from everyone but the people running the event.
@@ -252,6 +253,12 @@ export const assignJudge = async (trackId, judgeId, requestingUser) => {
 
 	await runInTransaction((session) => appointJudge(track, judge, session));
 
+	webhookService.dispatch(track.eventId, webhookService.TYPES.JUDGE_APPOINTED, {
+		trackId: track._id,
+		trackName: track.topic,
+		judgeName: judge.name,
+	});
+
 	return redactJudges(await trackRepository.findById(trackId), requestingUser);
 };
 
@@ -277,6 +284,11 @@ export const removeJudge = async (trackId, judgeId, requestingUser) => {
 		await trackRepository.removeJudge(trackId, judgeId, session);
 		await userRepository.removeJudgeIn(judgeId, trackId, session);
 		await releaseIfOffPanel(track.eventId, judgeId, session);
+	});
+
+	webhookService.dispatch(track.eventId, webhookService.TYPES.JUDGE_REMOVED, {
+		trackId: track._id,
+		trackName: track.topic,
 	});
 
 	return redactJudges(await trackRepository.findById(trackId), requestingUser);

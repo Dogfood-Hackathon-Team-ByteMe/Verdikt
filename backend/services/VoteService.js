@@ -15,6 +15,7 @@
 import Vote from "../models/Vote.js";
 import Event from "../models/Event.js";
 import * as projectRepository from "../repositories/ProjectRepository.js";
+import * as webhookService from "./WebhookService.js";
 
 const notFound = (what) => Object.assign(new Error(`${what} not found`), { statusCode: 404 });
 const forbidden = (message) => Object.assign(new Error(message), { statusCode: 403 });
@@ -69,7 +70,12 @@ export const castVote = async (projectId, requestingUser) => {
 		if (error.code === 11000) throw conflict("You have already voted for this project");
 		throw error;
 	}
-	return await countFor(project._id);
+	const tally = await countFor(project._id);
+	webhookService.dispatch(project.eventId, webhookService.TYPES.VOTE_CAST, {
+		projectId: project._id,
+		voteCount: tally.voteCount,
+	});
+	return tally;
 };
 
 export const withdrawVote = async (projectId, requestingUser) => {

@@ -17,6 +17,8 @@ import judgeInviteRoutes from "./judgeInviteRoutes.js";
 import * as auditController from "../controllers/AuditController.js";
 import * as commentController from "../controllers/CommentController.js";
 import assignmentRoutes from "./assignmentRoutes.js";
+import webhookRoutes from "./webhookRoutes.js";
+import certificateRoutes from "./certificateRoutes.js";
 import { authenticate, requireAuth } from "../middlewares/authMiddleware.js";
 import * as scoreController from "../controllers/ScoreController.js";
 import * as standingsController from "../controllers/StandingsController.js";
@@ -42,6 +44,8 @@ router.use("/join-requests", joinRequestRoutes);
 router.use("/judge-applications", judgeApplicationRoutes);
 router.use("/judge-invites", judgeInviteRoutes);
 router.use("/assignments", assignmentRoutes);
+router.use("/webhooks", webhookRoutes);
+router.use("/certificates", certificateRoutes);
 
 // Comment removal: its author taking it back, or the event's organiser
 // moderating. The latter is recorded in the audit trail.
