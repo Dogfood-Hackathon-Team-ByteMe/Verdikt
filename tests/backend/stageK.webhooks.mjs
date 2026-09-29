@@ -12,7 +12,7 @@ import http from 'node:http';
 import { createClient, resetDatabase, startTestServer, stopTestServer } from './harness.mjs';
 import { createEvent, createTeam, createTrack, makeJudge, registerUser } from './helpers.mjs';
 import { describe, expect, it, run } from './runner.mjs';
-import { RETRY_DELAYS_MS, flushWebhooks } from '../services/WebhookService.js';
+import { RETRY_DELAYS_MS, flushWebhooks } from '../../src/backend/services/WebhookService.js';
 
 // The shipped backoff is seconds; the suite needs milliseconds.
 RETRY_DELAYS_MS[0] = 10;

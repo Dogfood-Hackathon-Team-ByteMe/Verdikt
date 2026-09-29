@@ -1,7 +1,7 @@
 /**
  * Load the DOGFOOD fixtures.json into the portal.
  *
- *   npm run import-fixtures            # ../fixtures.json
+ *   npm run import-fixtures            # ../../../fixtures.json
  *   npm run import-fixtures -- path/to/fixtures.json
  *
  * The graders' run.py checks that projects from fixtures.json show up in the
@@ -42,7 +42,7 @@ const resolveFixturePath = () => {
     const explicit = process.argv[2];
     const candidates = explicit
         ? [explicit]
-        : [path.join(HERE, '..', '..', 'fixtures.json'), path.join(process.cwd(), 'fixtures.json')];
+        : [path.join(HERE, '..', '..', '..', 'fixtures.json'), path.join(process.cwd(), 'fixtures.json')];
     for (const candidate of candidates) {
         if (fs.existsSync(candidate)) return candidate;
     }

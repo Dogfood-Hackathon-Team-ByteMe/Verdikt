@@ -8,7 +8,7 @@ license = "MIT"
 
 [tiers]
 # Claim only what the acceptance report proves. Every T2 feature below has
-# HTTP-level tests in backend/tests/stageF-stageH and a browser check; every
+# HTTP-level tests in tests/backend/stageF-stageH and a browser check; every
 # T3 feature has them in stageI-stageJ; every T4 feature in stageK-stageM.
 claimed = ["T1", "T2", "T3", "T4"]
 t1 = "complete"
@@ -43,7 +43,7 @@ t4 = "complete"  # webhooks (organizer-registered, HMAC-SHA256-signed
 
 [acceptance]
 report = "acceptance-report.txt"
-command = "cd backend && npm install && npm run acceptance"
+command = "cd src/backend && npm install && npm run acceptance"
 tests_total = 295
 tests_passed = 295
 

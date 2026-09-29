@@ -13,7 +13,7 @@ import mongoose from 'mongoose';
 import { createClient, resetDatabase, startTestServer, stopTestServer } from './harness.mjs';
 import { createEvent, createTeam, createTrack, registerUser } from './helpers.mjs';
 import { describe, expect, it, run } from './runner.mjs';
-import { runProof } from '../utils/normalizationProof.js';
+import { runProof } from '../../src/backend/utils/normalizationProof.js';
 
 const RUBRIC = [
     { key: 'impact', label: 'Impact', weight: 1, maxScore: 10 },

@@ -3,7 +3,7 @@
 This is how a Verdikt event turns judges' ballots into a ranking, written down
 so that anyone — an organizer, a team that lost, a judge — can check the result
 rather than take it on trust. Every rule here is enforced by the API, not by
-the page, and every one has a test behind it (`backend/tests/stageF`–`stageH`).
+the page, and every one has a test behind it (`tests/backend/stageF`–`stageH`).
 
 ## 1. Who judges what
 
@@ -129,7 +129,7 @@ which one ranks; the other is always visible.
 
 ## 5. Does normalization actually help?
 
-Measured, not asserted. `npm run normalization-proof` (in `backend/`) simulates
+Measured, not asserted. `npm run normalization-proof` (in `src/backend/`) simulates
 events where every entry's true quality is known and every judge's bias is
 known, runs them through the same code the leaderboard uses, and compares each
 method's ranking with the truth. 200 seeded events per scenario, 40 entries,

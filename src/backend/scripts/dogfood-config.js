@@ -31,7 +31,7 @@ import { resolveRole } from '../utils/sanitize.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/dogfood';
-const TOML_PATH = process.argv[2] || path.join(HERE, '..', '..', '.dogfood.toml');
+const TOML_PATH = process.argv[2] || path.join(HERE, '..', '..', '..', '.dogfood.toml');
 const BASE_URL = process.env.DOGFOOD_BASE_URL || 'http://localhost:8080';
 const FIXTURE_EVENT = process.env.DOGFOOD_FIXTURE_EVENT || 'Sample Hack 2026';
 

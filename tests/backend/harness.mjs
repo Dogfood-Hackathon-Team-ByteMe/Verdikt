@@ -12,8 +12,8 @@
  */
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
-import { createApp } from '../app.js';
-import { LIMITS, resetRateLimits } from '../middlewares/rateLimit.js';
+import { createApp } from '../../src/backend/app.js';
+import { LIMITS, resetRateLimits } from '../../src/backend/middlewares/rateLimit.js';
 
 let replset;
 let server;

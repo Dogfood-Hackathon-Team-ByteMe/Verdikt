@@ -167,12 +167,12 @@ they take to run:
 
 ```bash
 # 295 HTTP-level tests, on a throwaway in-memory MongoDB replica set
-cd backend && npm install && npm test
+cd src/backend && npm install && npm test
 
 # The simulation behind the table above
 npm run normalization-proof
 
-# The same suite, writing the receipt to ../acceptance-report.txt
+# The same suite, writing the receipt to ../../acceptance-report.txt
 npm run acceptance
 ```
 
@@ -186,7 +186,7 @@ rules, so they still hold when you skip the frontend and use `curl`.
 <br>
 
 ```bash
-cd Frontend && npm run verify      # needs docker compose up
+cd src/frontend && npm run verify      # needs docker compose up
 ```
 
 The adapter layer between the API's Mongo shapes and the app's own types is the
@@ -204,10 +204,10 @@ refusals — and cleans up everything it creates.
 <br>
 
 ```bash
-cd backend
+cd src/backend
 npm run import-fixtures     # loads a second, already-closed event
 npm run dogfood-config      # mints session cookies into .dogfood.toml
-cd .. && python run.py .dogfood.toml
+cd ../.. && python run.py .dogfood.toml
 ```
 
 The imported event's deadline is in the past, so "closed events refuse
@@ -220,9 +220,9 @@ submissions" is checked against real closed data rather than asserted.
 | Criterion | Where to look |
 |---|---|
 | Tier completion and correctness | [`acceptance-report.txt`](acceptance-report.txt) · `python run.py .dogfood.toml` · [`.dogfood.toml`](.dogfood.toml) claims only what the acceptance suite proves over HTTP |
-| Judging integrity | [JUDGING.md](JUDGING.md) · `backend/services/JudgeScope.js` · `backend/tests/stageF`–`stageJ` |
+| Judging integrity | [JUDGING.md](JUDGING.md) · `src/backend/services/JudgeScope.js` · `tests/backend/stageF`–`stageJ` |
 | Adoptability and operability | This file · `docker compose up` · [ARCHITECTURE.md](ARCHITECTURE.md) · [DATA-MODEL.md](DATA-MODEL.md) |
-| Code quality and innovation | `backend/utils/normalization.js` and its proof · the per-event role model in `backend/utils/eventRoles.js` |
+| Code quality and innovation | `src/backend/utils/normalization.js` and its proof · the per-event role model in `src/backend/utils/eventRoles.js` |
 
 ---
 
@@ -322,15 +322,15 @@ deliberately *not* stored.
 
 ```bash
 # API — needs a MongoDB replica set
-cd backend && npm install && npm run dev      # :8080
+cd src/backend && npm install && npm run dev      # :8080
 
 # Web
-cd Frontend && npm install && npm run dev     # :5173
+cd src/frontend && npm install && npm run dev     # :5173
 ```
 
-Copy `backend/.env.example` to `backend/.env`. For the frontend, set
-`VITE_API_URL=http://localhost:8080` in `Frontend/.env` — or leave it unset to
-run the UI on built-in sample data with no backend at all.
+Copy `src/backend/.env.example` to `src/backend/.env`. For the frontend, set
+`VITE_API_URL=http://localhost:8080` in `src/frontend/.env` — or leave it unset
+to run the UI on built-in sample data with no backend at all.
 
 Borrow the bundled replica set with `docker compose up mongo`. A standalone
 `mongod` works too; the transactional writes fall back to non-atomic with a
@@ -344,19 +344,22 @@ logged warning.
 <br>
 
 ```
-backend/
-  routes/ controllers/ services/ repositories/   the request path, in order
-  middlewares/  rateLimit.js    who gets counted, and against what
-  utils/        rubric.js       ballot rules and weighting
-                standings.js    ranking, ties, unjudged entries
-                normalization.js (+ normalizationProof.js)
-                csv.js          quoting and formula defusing
-  tests/        295 HTTP-level tests (stageB … stageM)
-  scripts/      seed.js, import-fixtures.js, dogfood-config.js,
-                normalization-proof.js
-Frontend/       React + Vite SPA
-  src/api/      one adapter layer; nothing Mongo-shaped reaches a component
-  src/pages/    judging, organizing, submitting
+src/
+  backend/        Express API
+    routes/ controllers/ services/ repositories/   the request path, in order
+    middlewares/  rateLimit.js    who gets counted, and against what
+    utils/        rubric.js       ballot rules and weighting
+                  standings.js    ranking, ties, unjudged entries
+                  normalization.js (+ normalizationProof.js)
+                  csv.js          quoting and formula defusing
+    scripts/      seed.js, import-fixtures.js, dogfood-config.js,
+                  normalization-proof.js
+  frontend/       React + Vite SPA
+    src/api/      one adapter layer; nothing Mongo-shaped reaches a component
+    src/pages/    judging, organizing, submitting
+tests/
+  backend/        295 HTTP-level tests (stageB … stageM), run against
+                  src/backend over real HTTP
 API.md          the public /api/v1 surface and its three promises
 docs/           the screenshots in this file
 JUDGING.md      how ballots become a ranking, and the proof

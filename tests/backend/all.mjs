@@ -3,25 +3,34 @@
  * combined output to a file. That file is acceptance-report.txt, a T1
  * deliverable: the spec calls the acceptance report "your receipt".
  *
- *   node tests/all.mjs
- *   node tests/all.mjs --report ../acceptance-report.txt
+ * Suite files are resolved relative to this file's own location (not the
+ * caller's cwd), so this runs the same way whether invoked as
+ * `npm run acceptance` from src/backend, or directly as
+ * `node tests/backend/all.mjs` from the repo root.
+ *
+ *   node all.mjs
+ *   node all.mjs --report ../../acceptance-report.txt
  */
 import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
 
 const SUITES = [
-    ['Authentication and sessions', 'tests/stageB.auth.mjs'],
-    ['Tier 1 feature set', 'tests/stageC.t1.mjs'],
-    ['Seeded portal (docker compose equivalent)', 'tests/stageD.seed.mjs'],
-    ['Regression: previously broken behaviour', 'tests/stageE.regression.mjs'],
-    ['Judging: rubric, ballots and the panel', 'tests/stageF.judging.mjs'],
-    ['Standings: the computed leaderboard', 'tests/stageG.standings.mjs'],
-    ['Tier 2: normalization, assignment, scope, invites, exports', 'tests/stageH.panel.mjs'],
-    ['Tier 3: rate limiting and the audit trail', 'tests/stageI.abuse.mjs'],
-    ['Tier 3: community voting, comments and the public API', 'tests/stageJ.community.mjs'],
-    ['Tier 4: webhooks', 'tests/stageK.webhooks.mjs'],
-    ['Tier 4: certificates and signed judge records', 'tests/stageL.certificates.mjs'],
-    ['Tier 4: portability, the embed widget and the API surface', 'tests/stageM.portability.mjs'],
+    ['Authentication and sessions', 'stageB.auth.mjs'],
+    ['Tier 1 feature set', 'stageC.t1.mjs'],
+    ['Seeded portal (docker compose equivalent)', 'stageD.seed.mjs'],
+    ['Regression: previously broken behaviour', 'stageE.regression.mjs'],
+    ['Judging: rubric, ballots and the panel', 'stageF.judging.mjs'],
+    ['Standings: the computed leaderboard', 'stageG.standings.mjs'],
+    ['Tier 2: normalization, assignment, scope, invites, exports', 'stageH.panel.mjs'],
+    ['Tier 3: rate limiting and the audit trail', 'stageI.abuse.mjs'],
+    ['Tier 3: community voting, comments and the public API', 'stageJ.community.mjs'],
+    ['Tier 4: webhooks', 'stageK.webhooks.mjs'],
+    ['Tier 4: certificates and signed judge records', 'stageL.certificates.mjs'],
+    ['Tier 4: portability, the embed widget and the API surface', 'stageM.portability.mjs'],
 ];
 
 const reportFlag = process.argv.indexOf('--report');
@@ -30,7 +39,7 @@ const reportPath = reportFlag !== -1 ? process.argv[reportFlag + 1] : null;
 /** Run one suite as a child process; each needs its own MongoDB instance. */
 function runSuite(file) {
     return new Promise((resolve) => {
-        const child = spawn(process.execPath, [file], { stdio: ['ignore', 'pipe', 'pipe'] });
+        const child = spawn(process.execPath, [join(HERE, file)], { stdio: ['ignore', 'pipe', 'pipe'] });
         let out = '';
         child.stdout.on('data', (d) => {
             out += d;

@@ -1,5 +1,5 @@
 /**
- * Client-side mirror of backend/utils/eventRoles.js.
+ * Client-side mirror of src/backend/utils/eventRoles.js.
  *
  * This exists only so the UI can say "you cannot enter this event, and here is
  * why" before someone clicks, instead of letting them press Join and reading a

@@ -49,7 +49,7 @@ identically to a 60/20/20 one. Each line is scaled to its own `maxScore` before
 being weighted, so a rubric can mix a 1–5 line with a 1–10 one without the
 longer scale quietly counting for more than its weight says. The weighted score
 of a ballot is `sum(score_i / maxScore_i * weight_i) / sum(weight_i)`, which
-lands in 0..1 whatever scales are in play (`backend/utils/rubric.js`).
+lands in 0..1 whatever scales are in play (`src/backend/utils/rubric.js`).
 
 ### Track
 `topic`, `description`, `eventId`, `judges: [User]`.
@@ -107,7 +107,7 @@ data unwritable.
 **Not the leaderboard.** This collection is for *published* final standings —
 hand-entered positions, for announcing winners once they are decided. The live
 ranking is computed from `Score` on every read and never stored
-(`backend/utils/standings.js`, `services/StandingsService.js`), because ballots
+(`src/backend/utils/standings.js`, `services/StandingsService.js`), because ballots
 keep changing until judging closes and a stored ranking would go stale
 silently — looking authoritative and being wrong.
 
@@ -194,12 +194,12 @@ not lost user data, but run the replica set for anything real.
 - **Export**: `GET /api/export.csv?eventId=<id>` — organizer or admin only. One
   row per criterion per ballot: judge name, judge email, project, team, track,
   criterion, score, comment.
-- **Import / seeding**: `backend/scripts/seed.js` (`npm run seed`) builds a
+- **Import / seeding**: `src/backend/scripts/seed.js` (`npm run seed`) builds a
   complete event — 21 users across every role, 4 tracks, 6 prizes, 2 custom
   questions, 8 teams and projects (7 submitted, 1 draft), 8 ballots. It refuses
   to run against a populated database unless `SEED_FORCE=true`, so restarting
   compose does not wipe work.
-- **Fixtures**: `backend/scripts/import-fixtures.js` (`npm run import-fixtures`)
+- **Fixtures**: `src/backend/scripts/import-fixtures.js` (`npm run import-fixtures`)
   loads the graders' `fixtures.json` as an additional, already-closed event --
   8 tracks, 30 judges, 40 teams, 41 submitted projects, 126 ballots. It clears
   a previous import first, so re-running does not double the gallery, and it

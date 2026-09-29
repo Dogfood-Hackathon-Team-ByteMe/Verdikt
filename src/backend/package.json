@@ -11,11 +11,11 @@
     "import-fixtures": "node scripts/import-fixtures.js",
     "dogfood-config": "node scripts/dogfood-config.js",
     "normalization-proof": "node scripts/normalization-proof.js",
-    "test": "node tests/all.mjs",
-    "test:auth": "node tests/stageB.auth.mjs",
-    "test:t1": "node tests/stageC.t1.mjs",
-    "test:seed": "node tests/stageD.seed.mjs",
-    "acceptance": "node tests/all.mjs --report ../acceptance-report.txt"
+    "test": "node ../../tests/backend/all.mjs",
+    "test:auth": "node ../../tests/backend/stageB.auth.mjs",
+    "test:t1": "node ../../tests/backend/stageC.t1.mjs",
+    "test:seed": "node ../../tests/backend/stageD.seed.mjs",
+    "acceptance": "node ../../tests/backend/all.mjs --report ../../acceptance-report.txt"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

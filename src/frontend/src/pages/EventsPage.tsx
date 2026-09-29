@@ -7,7 +7,7 @@
  * choose one (banner, standing, deadline, size) and the entry form opens in
  * place on the one you pick. Search and the filter chips narrow the grid.
  *
- * Who may enter is decided by the server (backend/utils/eventRoles.js). The
+ * Who may enter is decided by the server (src/backend/utils/eventRoles.js). The
  * same rule is mirrored in ../auth/participation so the card can explain the
  * block up front rather than after a failed request -- but the message shown
  * on a real failure is always the server's own.

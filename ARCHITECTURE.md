@@ -114,7 +114,7 @@ their event — one endpoint, three answers, decided server-side.
 
 ## Testing
 
-`backend/tests/` drives the real Express app over HTTP against a throwaway
+`tests/backend/` drives the real Express app over HTTP against a throwaway
 in-memory MongoDB replica set. No test calls a service directly, because the
 thing being verified is precisely that the API enforces the rules. 255 tests in
 nine suites; `npm run acceptance` writes `acceptance-report.txt`.

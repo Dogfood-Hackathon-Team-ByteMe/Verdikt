@@ -40,7 +40,7 @@ services:
   # it, because an empty database is still a working portal.
   seed:
     build:
-      context: ./backend
+      context: ./src/backend
     container_name: verdikt-seed
     command: ["node", "scripts/seed.js"]
     environment:
@@ -53,7 +53,7 @@ services:
 
   api:
     build:
-      context: ./backend
+      context: ./src/backend
     container_name: verdikt-api
     environment:
       PORT: 8080
@@ -75,7 +75,7 @@ services:
 
   web:
     build:
-      context: ./Frontend
+      context: ./src/frontend
       args:
         # "/" = same-origin; nginx proxies /api to the api service.
         VITE_API_URL: /

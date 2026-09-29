@@ -6,12 +6,17 @@
  * closest thing to `docker compose up` that runs without Docker.
  */
 import { spawn } from 'node:child_process';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
-import { createApp } from '../app.js';
+import { createApp } from '../../src/backend/app.js';
 import { describe, expect, it, run } from './runner.mjs';
 
 const DEMO_PASSWORD = 'dogfood2026';
+// The backend package root, so 'scripts/seed.js' below resolves correctly
+// regardless of which directory this suite was launched from.
+const BACKEND_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'src', 'backend');
 
 let replset;
 let server;
@@ -21,6 +26,7 @@ let baseUrl;
 function runSeed(uri) {
     return new Promise((resolve, reject) => {
         const child = spawn(process.execPath, ['scripts/seed.js'], {
+            cwd: BACKEND_DIR,
             env: { ...process.env, MONGO_URI: uri, SEED_PASSWORD: DEMO_PASSWORD },
             stdio: ['ignore', 'pipe', 'pipe'],
         });

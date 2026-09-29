@@ -11,7 +11,7 @@ import mongoose from 'mongoose';
 import { createClient, resetDatabase, startTestServer, stopTestServer } from './harness.mjs';
 import { PASSWORD, createEvent, createTeam, createTrack, makeAdmin, makeJudge, registerUser } from './helpers.mjs';
 import { describe, expect, it, run } from './runner.mjs';
-import { LIMITS, resetRateLimits } from '../middlewares/rateLimit.js';
+import { LIMITS, resetRateLimits } from '../../src/backend/middlewares/rateLimit.js';
 
 let seq = 0;
 const email = (name) => `${name}-${++seq}-j@verdikt.dev`;

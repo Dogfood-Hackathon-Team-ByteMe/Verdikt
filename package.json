@@ -1,0 +1,21 @@
+{
+  "name": "verdikt",
+  "private": true,
+  "description": "Verdikt: open, self-hostable hackathon submissions and judging.",
+  "workspaces": [
+    "src/backend",
+    "src/frontend"
+  ],
+  "scripts": {
+    "test": "npm run test --workspace=src/backend",
+    "acceptance": "npm run acceptance --workspace=src/backend",
+    "normalization-proof": "npm run normalization-proof --workspace=src/backend",
+    "seed": "npm run seed --workspace=src/backend",
+    "import-fixtures": "npm run import-fixtures --workspace=src/backend",
+    "dogfood-config": "npm run dogfood-config --workspace=src/backend",
+    "dev:api": "npm run dev --workspace=src/backend",
+    "dev:web": "npm run dev --workspace=src/frontend",
+    "build:web": "npm run build --workspace=src/frontend",
+    "verify:web": "npm run verify --workspace=src/frontend"
+  }
+}

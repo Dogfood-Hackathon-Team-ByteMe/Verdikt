@@ -435,7 +435,7 @@ export const mockApi: VerdiktApi = {
   /**
    * The same aggregation the backend does, over the mock ballot box.
    *
-   * Duplicated rather than imported because backend/utils/standings.js is not
+   * Duplicated rather than imported because src/backend/utils/standings.js is not
    * reachable from the browser bundle -- and the mock exists so the screens can
    * be built with no backend at all. The rules it has to match: each criterion
    * scaled to its own maximum before weighting, the mean taken per ballot, and
