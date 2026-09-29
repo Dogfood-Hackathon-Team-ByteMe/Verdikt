@@ -166,13 +166,17 @@ Claims in this README have something behind them. Roughly in order of how long
 they take to run:
 
 ```bash
+# From the repo root — npm workspaces hoist one shared node_modules that
+# both src/backend and tests/backend resolve against
+npm install
+
 # 295 HTTP-level tests, on a throwaway in-memory MongoDB replica set
-cd src/backend && npm install && npm test
+npm test
 
 # The simulation behind the table above
 npm run normalization-proof
 
-# The same suite, writing the receipt to ../../acceptance-report.txt
+# The same suite, writing the receipt to acceptance-report.txt
 npm run acceptance
 ```
 

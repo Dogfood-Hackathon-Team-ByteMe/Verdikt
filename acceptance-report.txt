@@ -1,5 +1,5 @@
 Verdikt acceptance report
-Generated: 2026-09-29T11:53:46.928Z
+Generated: 2026-09-29T11:57:41.750Z
 Node: v24.18.0
 Tiers claimed: 1, 2, 3, 4
 
@@ -10,304 +10,517 @@ below is verified at the API level rather than in the UI.
 ======================================================================
 Authentication and sessions
 ======================================================================
-node:internal/modules/package_json_reader:301
-  throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
-        ^
 
-Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'mongodb-memory-server' imported from C:\Users\mayan\Downloads\WORKSPACE\VERDIKT-DOGFOOD\tests\backend\harness.mjs
-    at Object.getPackageJSONURL (node:internal/modules/package_json_reader:301:9)
-    at packageResolve (node:internal/modules/esm/resolve:768:81)
-    at moduleResolve (node:internal/modules/esm/resolve:859:18)
-    at defaultResolve (node:internal/modules/esm/resolve:992:11)
-    at #cachedDefaultResolve (node:internal/modules/esm/loader:701:20)
-    at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:721:38)
-    at ModuleLoader.resolveSync (node:internal/modules/esm/loader:759:56)
-    at #resolve (node:internal/modules/esm/loader:683:17)
-    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:603:35)
-    at ModuleJob.syncLink (node:internal/modules/esm/module_job:163:33) {
-  code: 'ERR_MODULE_NOT_FOUND'
-}
+POST /api/auth/register
+  PASS  creates an account and issues a session cookie
+  PASS  never returns the password hash
+  PASS  rejects a duplicate email with 409
+  PASS  rejects a short password with 400
+  PASS  ignores isAdmin in the request body (privilege escalation)
+  PASS  normalises the email to lower case
 
-Node.js v24.18.0
+POST /api/auth/login
+  PASS  signs in with correct credentials
+  PASS  rejects a wrong password with 401
+  PASS  gives the same message for an unknown email as for a wrong password
 
-SUITE DID NOT REPORT A SUMMARY (crashed before finishing)
+GET /api/auth/me
+  PASS  returns 401 without a session
+  PASS  returns the signed-in user with a resolved role
+
+POST /api/auth/logout
+  PASS  revokes the session so the next request is 401
+  PASS  succeeds when already signed out
+  PASS  kills a stolen token: the old cookie stops working after logout
+
+POST /api/users (admin-only account creation)
+  PASS  rejects a non-admin with 403
+  PASS  rejects an anonymous caller with 401
+
+GET /api/users
+  PASS  never leaks password hashes
+
+17 passed, 0 failed, 17 total
+
 
 ======================================================================
 Tier 1 feature set
 ======================================================================
-node:internal/modules/package_json_reader:301
-  throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
-        ^
 
-Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'mongodb-memory-server' imported from C:\Users\mayan\Downloads\WORKSPACE\VERDIKT-DOGFOOD\tests\backend\harness.mjs
-    at Object.getPackageJSONURL (node:internal/modules/package_json_reader:301:9)
-    at packageResolve (node:internal/modules/esm/resolve:768:81)
-    at moduleResolve (node:internal/modules/esm/resolve:859:18)
-    at defaultResolve (node:internal/modules/esm/resolve:992:11)
-    at #cachedDefaultResolve (node:internal/modules/esm/loader:701:20)
-    at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:721:38)
-    at ModuleLoader.resolveSync (node:internal/modules/esm/loader:759:56)
-    at #resolve (node:internal/modules/esm/loader:683:17)
-    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:603:35)
-    at ModuleJob.syncLink (node:internal/modules/esm/module_job:163:33) {
-  code: 'ERR_MODULE_NOT_FOUND'
-}
+T1: event creation with dates, tracks and prizes
+  PASS  an organizer can create an event and becomes its organiser
+  PASS  rejects a submissionsClose in the past
+  PASS  stores configurable prizes and custom questions
+  PASS  a non-organizer cannot update someone else s event
+  PASS  GET /api/events/featured works for an anonymous visitor
+  PASS  tracks are listable by an anonymous visitor
 
-Node.js v24.18.0
+T1: team formation via invite link
+  PASS  the leader can create an invite and another user can accept it
+  PASS  a non-leader cannot create an invite
+  PASS  rejects an unknown invite token with 404
+  PASS  refuses to admit the same user twice
+  PASS  enforces the event s maxTeamSize
 
-SUITE DID NOT REPORT A SUMMARY (crashed before finishing)
+T1: leaving a team
+  PASS  a member can remove themselves
+  PASS  a member still cannot remove someone else
+  PASS  the leader cannot leave their own team
+
+T1: project submission, drafts and edits
+  PASS  a team member can create a draft
+  PASS  stores the full T1 submission data model
+  PASS  a non-member cannot edit the project
+  PASS  ignores status and teamId in the request body
+  PASS  submitting flips the status and stamps submittedAt
+  PASS  refuses to submit without a track
+  PASS  refuses to submit without answering a required custom question
+  PASS  a team can only have one project
+
+T1: deadline enforcement actually prevents submissions
+  PASS  blocks creating a project after the deadline
+  PASS  blocks editing a draft after the deadline
+  PASS  blocks submitting after the deadline
+  PASS  blocks deleting after the deadline
+  PASS  a project submitted before the deadline stays submitted after it
+
+T1: public gallery with search and filter
+  PASS  an anonymous visitor sees submitted projects
+  PASS  an anonymous visitor does NOT see drafts
+  PASS  a team member sees their own draft
+  PASS  an unrelated signed-in user does not see someone else s draft
+  PASS  the organizer sees drafts for their own event
+  PASS  searches by title, tagline and tech tag
+  PASS  filters by track, and combines search with the track filter
+  PASS  a regex metacharacter in the search does not crash the endpoint
+  PASS  GET /api/projects/:id 403s on a draft for an anonymous visitor
+
+T1: role checks hold at the API level
+  PASS  an anonymous caller cannot create an event
+  PASS  an anonymous caller cannot create a project
+  PASS  a participant cannot create a track on an event they do not organise
+  PASS  a participant cannot delete another team s project
+  PASS  an admin overrides ownership checks
+  PASS  a malformed id returns 400, not 500
+  PASS  an unknown route returns a JSON 404
+
+43 passed, 0 failed, 43 total
+
 
 ======================================================================
 Seeded portal (docker compose equivalent)
 ======================================================================
-node:internal/modules/package_json_reader:301
-  throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
-        ^
 
-Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'mongodb-memory-server' imported from C:\Users\mayan\Downloads\WORKSPACE\VERDIKT-DOGFOOD\tests\backend\stageD.seed.mjs
-    at Object.getPackageJSONURL (node:internal/modules/package_json_reader:301:9)
-    at packageResolve (node:internal/modules/esm/resolve:768:81)
-    at moduleResolve (node:internal/modules/esm/resolve:859:18)
-    at defaultResolve (node:internal/modules/esm/resolve:992:11)
-    at #cachedDefaultResolve (node:internal/modules/esm/loader:701:20)
-    at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:721:38)
-    at ModuleLoader.resolveSync (node:internal/modules/esm/loader:759:56)
-    at #resolve (node:internal/modules/esm/loader:683:17)
-    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:603:35)
-    at ModuleJob.syncLink (node:internal/modules/esm/module_job:163:33) {
-  code: 'ERR_MODULE_NOT_FOUND'
-}
+seed script
+  PASS  runs to completion and reports what it made
 
-Node.js v24.18.0
+the seeded portal answers as a visitor
+  PASS  serves a featured event with tracks and prizes
+  PASS  the deadline is in the future, so the countdown is live
+  PASS  the public gallery shows submitted projects only
+  PASS  gallery search and track filtering work
+  PASS  never exposes a password hash anywhere public
 
-SUITE DID NOT REPORT A SUMMARY (crashed before finishing)
+the seeded accounts work
+  PASS  every documented demo account can sign in
+  PASS  each account resolves to the role the docs promise
+  PASS  the participant sees their own team draft in the gallery
+  PASS  a judge can read their own ballots and only their own
+  PASS  the organizer can export scores as CSV
+  PASS  a participant cannot export scores
+
+12 passed, 0 failed, 12 total
+
 
 ======================================================================
 Regression: previously broken behaviour
 ======================================================================
-node:internal/modules/package_json_reader:301
-  throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
-        ^
 
-Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'mongoose' imported from C:\Users\mayan\Downloads\WORKSPACE\VERDIKT-DOGFOOD\tests\backend\stageE.regression.mjs
-    at Object.getPackageJSONURL (node:internal/modules/package_json_reader:301:9)
-    at packageResolve (node:internal/modules/esm/resolve:768:81)
-    at moduleResolve (node:internal/modules/esm/resolve:859:18)
-    at defaultResolve (node:internal/modules/esm/resolve:992:11)
-    at #cachedDefaultResolve (node:internal/modules/esm/loader:701:20)
-    at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:721:38)
-    at ModuleLoader.resolveSync (node:internal/modules/esm/loader:759:56)
-    at #resolve (node:internal/modules/esm/loader:683:17)
-    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:603:35)
-    at ModuleJob.syncLink (node:internal/modules/esm/module_job:163:33) {
-  code: 'ERR_MODULE_NOT_FOUND'
-}
+BUG-1: routes referencing an unimported requireAuth
+  PASS  the result and track routers are mounted and reachable
+  PASS  the score list route resolves to a real handler
 
-Node.js v24.18.0
+BUG-2: acceptInvite read `event` before declaring it
+  PASS  accepting an invite does not throw a TDZ ReferenceError
+  PASS  still blocks a judge from joining an event they judge
 
-SUITE DID NOT REPORT A SUMMARY (crashed before finishing)
+BUG-3: the public gallery returned nothing to visitors
+  PASS  a submitted project is visible before the deadline passes
+
+BUG-4: password hashes leaked to clients
+  PASS  GET /api/users/:id does not include the hash
+  PASS  the public team list does not include member hashes
+  PASS  the public team list does not expose member email addresses
+  PASS  a single team read does not expose emails either
+
+BUG-5: privilege escalation through mass assignment
+  PASS  register ignores isAdmin
+  PASS  a project update cannot move the project to another team
+
+BUG-6: judges could read peer ballots via GET /api/scores
+  PASS  a judge listing scores sees only their own
+  PASS  a participant cannot list scores at all
+  PASS  an organizer sees every ballot for their event
+
+BUG-7: tracks required an eventId to list
+  PASS  GET /api/tracks works with no query string
+
+BUG-8: profile update was a mass-assignment hole
+  PASS  a user cannot promote themselves to admin
+  PASS  a user cannot grant themselves a role on an event
+  PASS  a user still cannot edit someone else
+  PASS  changing a password needs the current one
+  PASS  a password change with the current one succeeds and takes effect
+  PASS  the profile edit itself works
+
+roles are per event, not global
+  PASS  an organiser of one event can still compete in another
+  PASS  a competitor in one event can organise another
+  PASS  a judge of one event can compete in another
+  PASS  organising one event does not unlock another event's ballots
+
+error handling
+  PASS  a 500 does not leak the internal exception message
+  PASS  health check responds without touching the database
+
+27 passed, 0 failed, 27 total
+
 
 ======================================================================
 Judging: rubric, ballots and the panel
 ======================================================================
-node:internal/modules/package_json_reader:301
-  throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
-        ^
 
-Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'mongoose' imported from C:\Users\mayan\Downloads\WORKSPACE\VERDIKT-DOGFOOD\tests\backend\stageF.judging.mjs
-    at Object.getPackageJSONURL (node:internal/modules/package_json_reader:301:9)
-    at packageResolve (node:internal/modules/esm/resolve:768:81)
-    at moduleResolve (node:internal/modules/esm/resolve:859:18)
-    at defaultResolve (node:internal/modules/esm/resolve:992:11)
-    at #cachedDefaultResolve (node:internal/modules/esm/loader:701:20)
-    at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:721:38)
-    at ModuleLoader.resolveSync (node:internal/modules/esm/loader:759:56)
-    at #resolve (node:internal/modules/esm/loader:683:17)
-    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:603:35)
-    at ModuleJob.syncLink (node:internal/modules/esm/module_job:163:33) {
-  code: 'ERR_MODULE_NOT_FOUND'
-}
+the organizer configures a rubric
+  PASS  saves criteria on the event
+  PASS  refuses two criteria sharing a key
+  PASS  drops half-finished rows instead of rejecting the save
+  PASS  a stranger cannot write the rubric of someone else’s event
 
-Node.js v24.18.0
+an event update cannot be used to grant roles
+  PASS  an organiser cannot appoint judges by writing judgeIds
+  PASS  an organiser cannot hand their event to someone else
+  PASS  an organiser cannot feature their own event on the landing page
 
-SUITE DID NOT REPORT A SUMMARY (crashed before finishing)
+team size bounds have to agree with each other
+  PASS  refuses a minimum larger than the maximum on update
+  PASS  refuses it on create too
+  PASS  catches a partial update against the value already stored
+  PASS  refuses a fractional or zero size
+  PASS  still allows a sensible change, including min equal to max
+
+a ballot is checked against the rubric
+  PASS  accepts a complete ballot
+  PASS  refuses a criterion the rubric does not define
+  PASS  refuses a score above that criterion’s own maximum
+  PASS  refuses a ballot with a criterion left unscored
+  PASS  refuses a score that is not a number
+  PASS  enforces the rubric on PUT /api/scores/:id too
+
+saving a ballot twice edits it rather than failing
+  PASS  the second save replaces the first
+  PASS  a ballot cannot be edited onto a different project
+
+who may cast a ballot
+  PASS  a judge listed only on a track can score
+  PASS  a participant cannot score
+  PASS  a judge of another event cannot score here
+  PASS  an anonymous request cannot score
+  PASS  a draft cannot be scored
+
+a judge reads their own ballots and no one else’s
+  PASS  an event-level judge can list their ballots
+  PASS  one judge never sees another judge’s ballot
+  PASS  the organiser sees every ballot on their own event
+
+appointing judges
+  PASS  the organiser adds a judge to a track by email
+  PASS  refuses to appoint someone competing in the event
+  PASS  refuses to appoint the organiser of the event
+  PASS  a non-organiser cannot appoint judges, and cannot probe for accounts
+  PASS  removing a judge takes the track off their account
+
+an event with no rubric
+  PASS  still accepts a ballot, so ballots cast before rubrics existed stay writable
+  PASS  refuses an empty ballot either way
+
+judges' email addresses are not public
+  PASS  an anonymous reader of /api/tracks sees names but no addresses
+  PASS  a single public track read does not expose addresses either
+  PASS  a signed-in stranger does not get addresses
+  PASS  the organiser of the event does get them, because they manage the panel
+
+39 passed, 0 failed, 39 total
+
 
 ======================================================================
 Standings: the computed leaderboard
 ======================================================================
-node:internal/modules/package_json_reader:301
-  throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
-        ^
 
-Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'mongoose' imported from C:\Users\mayan\Downloads\WORKSPACE\VERDIKT-DOGFOOD\tests\backend\stageG.standings.mjs
-    at Object.getPackageJSONURL (node:internal/modules/package_json_reader:301:9)
-    at packageResolve (node:internal/modules/esm/resolve:768:81)
-    at moduleResolve (node:internal/modules/esm/resolve:859:18)
-    at defaultResolve (node:internal/modules/esm/resolve:992:11)
-    at #cachedDefaultResolve (node:internal/modules/esm/loader:701:20)
-    at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:721:38)
-    at ModuleLoader.resolveSync (node:internal/modules/esm/loader:759:56)
-    at #resolve (node:internal/modules/esm/loader:683:17)
-    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:603:35)
-    at ModuleJob.syncLink (node:internal/modules/esm/module_job:163:33) {
-  code: 'ERR_MODULE_NOT_FOUND'
-}
+the leaderboard is computed from ballots
+  PASS  ranks entries by weighted score, best first
+  PASS  weights each criterion by its own scale, not by raw points
+  PASS  reports the per-criterion average for each entry
+  PASS  counts the ballots behind each entry
+  PASS  gives tied entries the same rank and skips the one behind
+  PASS  ranks within each track as well as overall
 
-Node.js v24.18.0
+entries nobody has scored
+  PASS  are listed but left unranked, not ranked last
+  PASS  sort to the end of the table
+  PASS  show up in the progress counters
 
-SUITE DID NOT REPORT A SUMMARY (crashed before finishing)
+judging progress
+  PASS  reports a ballot count per judge on the panel
+  PASS  lists a judge who has not started, rather than omitting them
+
+a draft is not in the running
+  PASS  is left out of the standings entirely
+
+who may read the standings
+  PASS  the organiser of the event can
+  PASS  a judge cannot, because the aggregate reveals their peers
+  PASS  a participant cannot
+  PASS  an anonymous visitor cannot
+  PASS  the organiser of a DIFFERENT event cannot
+  PASS  an admin can
+  PASS  an unknown event is a 404, not an empty table
+
+the standings CSV
+  PASS  has one row per entry, with both scores and each average
+  PASS  leaves the scores blank for an unjudged entry rather than writing 0
+  PASS  quotes a title containing a comma so the columns survive
+  PASS  is refused to a judge, like the JSON
+
+an event with no rubric
+  PASS  produces a table an organiser can still read
+
+24 passed, 0 failed, 24 total
+
 
 ======================================================================
 Tier 2: normalization, assignment, scope, invites, exports
 ======================================================================
-node:internal/modules/package_json_reader:301
-  throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
-        ^
 
-Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'mongoose' imported from C:\Users\mayan\Downloads\WORKSPACE\VERDIKT-DOGFOOD\tests\backend\stageH.panel.mjs
-    at Object.getPackageJSONURL (node:internal/modules/package_json_reader:301:9)
-    at packageResolve (node:internal/modules/esm/resolve:768:81)
-    at moduleResolve (node:internal/modules/esm/resolve:859:18)
-    at defaultResolve (node:internal/modules/esm/resolve:992:11)
-    at #cachedDefaultResolve (node:internal/modules/esm/loader:701:20)
-    at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:721:38)
-    at ModuleLoader.resolveSync (node:internal/modules/esm/loader:759:56)
-    at #resolve (node:internal/modules/esm/loader:683:17)
-    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:603:35)
-    at ModuleJob.syncLink (node:internal/modules/esm/module_job:163:33) {
-  code: 'ERR_MODULE_NOT_FOUND'
-}
+cross-judge normalization in the standings
+  PASS  a harsh and a generous judge who agree on the order produce the same normalized scores
+  PASS  removes a generous judge’s advantage: each judge’s favourite ends up level
+  PASS  a judge with a single ballot is left uncorrected, and the panel says why
+  PASS  an unknown method is a 400, not a silently different ranking
+  PASS  reports how many separately-comparable groups the panel split into
 
-Node.js v24.18.0
+the normalization proof
+  PASS  beats raw scores when judges are biased and entries are dealt at random
+  PASS  costs little when there is no bias to correct
+  PASS  does not fall apart when judges are kept to tracks of different strength
 
-SUITE DID NOT REPORT A SUMMARY (crashed before finishing)
+a track judge cannot score other tracks
+  PASS  refuses a ballot on an entry outside the judge’s track
+  PASS  also refuses it through POST /api/scores
+  PASS  allows a judge appointed to both tracks to score either
+  PASS  the judging queue lists only the judge’s own track
+  PASS  a participant gets no queue at all
+  PASS  an admin who is not on the panel cannot cast a ballot
+
+taking a judge off the panel narrows their access, never widens it
+  PASS  a judge removed from their only track can no longer score anything
+  PASS  a removed judge is taken off the event too
+  PASS  a judge removed from one of two tracks keeps the other
+  PASS  a track with entries on it cannot be deleted out from under them
+  PASS  deleting an empty track takes its judges off the event and the track off the event
+
+batch assignment
+  PASS  gives every entry the reviews asked for, from eligible judges only
+  PASS  balances the load when every judge can take every entry
+  PASS  lets track isolation win over balance when the two conflict
+  PASS  reports a shortfall rather than borrowing judges from another track
+  PASS  re-running tops up instead of duplicating
+  PASS  adopts a ballot cast before assignments existed, so nobody is locked out of it
+  PASS  re-dealing does not hand a removed judge back the track they were taken off
+  PASS  once assignments exist, a judge scores their batch and nothing else
+  PASS  a judge with no assignments in a batched event has an empty queue
+  PASS  rejects a nonsense review count
+  PASS  a hand assignment is held to the same track rule
+  PASS  a hand assignment within the track works
+  PASS  an assignment the judge has already scored cannot be removed
+  PASS  clearing assignments returns judges to scoring by track
+  PASS  only the organiser can deal, list or clear assignments
+  PASS  the leaderboard shows how many reviews each entry was assigned
+
+judge invites
+  PASS  someone with no account yet can be invited, sign up, and accept
+  PASS  the public preview masks the address
+  PASS  a forwarded link is useless to a different account
+  PASS  an invite works exactly once
+  PASS  a withdrawn invite cannot be accepted
+  PASS  an expired invite cannot be accepted
+  PASS  someone who joined a team in the meantime is refused when they accept
+  PASS  inviting the same address twice hands back the same open invite
+  PASS  only the organiser can create or list invites
+  PASS  an unknown token is a 404
+
+judge applications cannot cross events or skip the rules
+  PASS  an application naming another event’s track is refused
+  PASS  an organiser cannot apply to judge their own event
+  PASS  an applicant who joins a team before being accepted is not appointed
+
+an export for every stage
+  PASS  entries: every entry, drafts included, with its answers
+  PASS  assignments: who was asked to review what, and whether they have
+  PASS  ballots: each ballot row carries its weighted and normalized score
+  PASS  a title a spreadsheet would run as a formula is defused
+  PASS  every export is refused to a judge, a participant and a stranger
+
+53 passed, 0 failed, 53 total
+
 
 ======================================================================
 Tier 3: rate limiting and the audit trail
 ======================================================================
-node:internal/modules/package_json_reader:301
-  throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
-        ^
 
-Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'mongoose' imported from C:\Users\mayan\Downloads\WORKSPACE\VERDIKT-DOGFOOD\tests\backend\stageI.abuse.mjs
-    at Object.getPackageJSONURL (node:internal/modules/package_json_reader:301:9)
-    at packageResolve (node:internal/modules/esm/resolve:768:81)
-    at moduleResolve (node:internal/modules/esm/resolve:859:18)
-    at defaultResolve (node:internal/modules/esm/resolve:992:11)
-    at #cachedDefaultResolve (node:internal/modules/esm/loader:701:20)
-    at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:721:38)
-    at ModuleLoader.resolveSync (node:internal/modules/esm/loader:759:56)
-    at #resolve (node:internal/modules/esm/loader:683:17)
-    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:603:35)
-    at ModuleJob.syncLink (node:internal/modules/esm/module_job:163:33) {
-  code: 'ERR_MODULE_NOT_FOUND'
-}
+sign-in cannot be brute-forced
+  PASS  an account stops answering after enough wrong passwords
+  PASS  a blocked account stays blocked even with the right password
+  PASS  the refusal says how long to wait
+  PASS  locking one account does not lock anyone else out
+  PASS  signing in successfully clears the failures before it
+  PASS  one address cannot spray guesses across many accounts
+  PASS  accounts cannot be created in bulk from one address
+  PASS  two signed-in accounts on one address do not share a write budget
+  PASS  reads are never throttled as writes
 
-Node.js v24.18.0
+the audit trail records who changed the panel
+  PASS  appointing and removing a judge is recorded against the event
+  PASS  a row names who did it and when
+  PASS  the newest change is first
+  PASS  an event update records which fields moved, not their values
+  PASS  dealing and clearing assignments is recorded
+  PASS  a judge invite and its withdrawal land in the event that owns them
+  PASS  a blocked sign-in is recorded even though it never reached a controller
 
-SUITE DID NOT REPORT A SUMMARY (crashed before finishing)
+the audit trail is not readable by the panel it describes
+  PASS  a judge cannot read the event trail
+  PASS  another organiser cannot read this event trail
+  PASS  a stranger and a signed-out visitor are refused
+  PASS  only an admin reads the trail across every event
+  PASS  an admin reads any event trail without being its organiser
+  PASS  the trail cannot be written or erased over HTTP
+
+22 passed, 0 failed, 22 total
+
 
 ======================================================================
 Tier 3: community voting, comments and the public API
 ======================================================================
-node:internal/modules/package_json_reader:301
-  throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
-        ^
 
-Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'mongoose' imported from C:\Users\mayan\Downloads\WORKSPACE\VERDIKT-DOGFOOD\tests\backend\stageJ.community.mjs
-    at Object.getPackageJSONURL (node:internal/modules/package_json_reader:301:9)
-    at packageResolve (node:internal/modules/esm/resolve:768:81)
-    at moduleResolve (node:internal/modules/esm/resolve:859:18)
-    at defaultResolve (node:internal/modules/esm/resolve:992:11)
-    at #cachedDefaultResolve (node:internal/modules/esm/loader:701:20)
-    at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:721:38)
-    at ModuleLoader.resolveSync (node:internal/modules/esm/loader:759:56)
-    at #resolve (node:internal/modules/esm/loader:683:17)
-    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:603:35)
-    at ModuleJob.syncLink (node:internal/modules/esm/module_job:163:33) {
-  code: 'ERR_MODULE_NOT_FOUND'
-}
+community voting counts everyone once and the wrong people never
+  PASS  a signed-in visitor votes, the count rises, and the gallery shows it
+  PASS  the same account cannot vote twice
+  PASS  a vote can be taken back, once
+  PASS  your own team, the judges, the organiser and an admin are all refused
+  PASS  voting needs an account, and a draft answers like a missing project
+  PASS  the community poll ranks by votes with shared ranks on ties
+  PASS  votes never reach the judged standings
 
-Node.js v24.18.0
+comments are public to read, accountable to write
+  PASS  anyone reads, only an account writes, and threads stay one level
+  PASS  an empty comment and a parent from another project are refused
+  PASS  an author takes back their words; the placeholder says so
+  PASS  the organiser moderates, the trail records it, a stranger cannot
+  PASS  a removed comment cannot be removed again, and drafts take no comments
+  PASS  a chattering account hits its own ceiling, nobody else theirs
 
-SUITE DID NOT REPORT A SUMMARY (crashed before finishing)
+the public API shows exactly what is public
+  PASS  the index names its endpoints and takes no verbs but GET
+  PASS  an event answers with its public face and nothing else
+  PASS  event projects are submitted work only, votes attached, roster withheld
+  PASS  the poll and the comments read the same through v1 as anywhere
+  PASS  the keyless surface has a ceiling per address
+
+18 passed, 0 failed, 18 total
+
 
 ======================================================================
 Tier 4: webhooks
 ======================================================================
-node:internal/modules/package_json_reader:301
-  throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
-        ^
 
-Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'mongodb-memory-server' imported from C:\Users\mayan\Downloads\WORKSPACE\VERDIKT-DOGFOOD\tests\backend\harness.mjs
-    at Object.getPackageJSONURL (node:internal/modules/package_json_reader:301:9)
-    at packageResolve (node:internal/modules/esm/resolve:768:81)
-    at moduleResolve (node:internal/modules/esm/resolve:859:18)
-    at defaultResolve (node:internal/modules/esm/resolve:992:11)
-    at #cachedDefaultResolve (node:internal/modules/esm/loader:701:20)
-    at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:721:38)
-    at ModuleLoader.resolveSync (node:internal/modules/esm/loader:759:56)
-    at #resolve (node:internal/modules/esm/loader:683:17)
-    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:603:35)
-    at ModuleJob.syncLink (node:internal/modules/esm/module_job:163:33) {
-  code: 'ERR_MODULE_NOT_FOUND'
-}
+registering a webhook is the organiser’s power and nobody else’s
+  PASS  the organiser registers an endpoint and gets a server-minted secret
+  PASS  the caller cannot choose their own secret
+  PASS  a participant, a judge, a stranger and a visitor are all refused
+  PASS  the organiser of a different event is a stranger here
+  PASS  a nonsense URL, a non-http scheme and an unknown type are refused
+  PASS  deleting is organiser-only, and both acts land in the audit trail
 
-Node.js v24.18.0
+deliveries are signed, filtered and recorded
+  PASS  submitting a project fires the hook with a verifiable signature
+  PASS  a subscription filtered to one type does not receive the others
+  PASS  a ballot fires the hook but never carries the scores
+  PASS  the delivery log records a landed payload as delivered
+  PASS  a dead receiver fails the delivery after retries, and the submission survives
+  PASS  a failed delivery can be redelivered by hand once the receiver is back
+  PASS  a receiver answering 500 is a failed delivery, not a delivered one
+  PASS  appointing a judge by email fires judge.appointed
 
-SUITE DID NOT REPORT A SUMMARY (crashed before finishing)
+14 passed, 0 failed, 14 total
+
 
 ======================================================================
 Tier 4: certificates and signed judge records
 ======================================================================
-node:internal/modules/package_json_reader:301
-  throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
-        ^
 
-Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'mongodb-memory-server' imported from C:\Users\mayan\Downloads\WORKSPACE\VERDIKT-DOGFOOD\tests\backend\harness.mjs
-    at Object.getPackageJSONURL (node:internal/modules/package_json_reader:301:9)
-    at packageResolve (node:internal/modules/esm/resolve:768:81)
-    at moduleResolve (node:internal/modules/esm/resolve:859:18)
-    at defaultResolve (node:internal/modules/esm/resolve:992:11)
-    at #cachedDefaultResolve (node:internal/modules/esm/loader:701:20)
-    at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:721:38)
-    at ModuleLoader.resolveSync (node:internal/modules/esm/loader:759:56)
-    at #resolve (node:internal/modules/esm/loader:683:17)
-    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:603:35)
-    at ModuleJob.syncLink (node:internal/modules/esm/module_job:163:33) {
-  code: 'ERR_MODULE_NOT_FOUND'
-}
+participation certificates
+  PASS  the organiser issues one per member of every submitted entry
+  PASS  issuing twice is idempotent and keeps the original serials
+  PASS  a participant, a stranger and a visitor cannot issue or list
+  PASS  a recipient sees their own certificates and only their own
+  PASS  an event with no submissions has nobody to certify
 
-Node.js v24.18.0
+placement certificates
+  PASS  the organiser places an entry and its whole team is certified with the place
+  PASS  a project from another event, a draft and a nonsense place are refused
 
-SUITE DID NOT REPORT A SUMMARY (crashed before finishing)
+signed judge participation records
+  PASS  a judge who cast ballots gets a record naming their work; one who did not gets none
+  PASS  with no ballots at all there is nothing to certify
+
+public verification
+  PASS  anyone verifies a certificate by serial, with no account
+  PASS  the signature verifies offline with nothing but the public key
+  PASS  a tampered record fails verification
+  PASS  an unknown serial is a 404, and the v1 surface still takes no verbs but GET
+
+13 passed, 0 failed, 13 total
+
 
 ======================================================================
 Tier 4: portability, the embed widget and the API surface
 ======================================================================
-node:internal/modules/package_json_reader:301
-  throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
-        ^
 
-Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'mongodb-memory-server' imported from C:\Users\mayan\Downloads\WORKSPACE\VERDIKT-DOGFOOD\tests\backend\harness.mjs
-    at Object.getPackageJSONURL (node:internal/modules/package_json_reader:301:9)
-    at packageResolve (node:internal/modules/esm/resolve:768:81)
-    at moduleResolve (node:internal/modules/esm/resolve:859:18)
-    at defaultResolve (node:internal/modules/esm/resolve:992:11)
-    at #cachedDefaultResolve (node:internal/modules/esm/loader:701:20)
-    at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:721:38)
-    at ModuleLoader.resolveSync (node:internal/modules/esm/loader:759:56)
-    at #resolve (node:internal/modules/esm/loader:683:17)
-    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:603:35)
-    at ModuleJob.syncLink (node:internal/modules/esm/module_job:163:33) {
-  code: 'ERR_MODULE_NOT_FOUND'
-}
+bulk export
+  PASS  the organiser gets one bundle carrying the whole event
+  PASS  no password hash and no bcrypt string travels in the bundle
+  PASS  a participant, a judge, a stranger and a visitor cannot export
 
-Node.js v24.18.0
+bulk import
+  PASS  the round trip preserves the ranking
+  PASS  the importer becomes the organiser; the original organiser is a stranger here
+  PASS  an account minted for an imported stranger cannot be signed into
+  PASS  an existing account is linked by email, not duplicated
+  PASS  garbage, a wrong format and a wrong version are refused
 
-SUITE DID NOT REPORT A SUMMARY (crashed before finishing)
+the embeddable gallery widget
+  PASS  serves a self-contained page of submitted entries, framable anywhere
+  PASS  drafts stay out of the widget, and titles are escaped
+  PASS  an unknown event is a 404, not an empty page
+
+the documented API surface
+  PASS  serves a parseable OpenAPI spec that names the routes the app really has
+  PASS  the v1 index lists the T4 endpoints
+
+13 passed, 0 failed, 13 total
+
 
 ======================================================================
-TOTAL: 0 passed, 12 failed
-RESULT: FAILED
+TOTAL: 295 passed, 0 failed
+RESULT: Tier 1, Tier 2, Tier 3 and Tier 4 acceptance PASSED
 ======================================================================

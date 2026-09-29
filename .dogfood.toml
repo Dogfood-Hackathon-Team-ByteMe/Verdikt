@@ -43,7 +43,7 @@ t4 = "complete"  # webhooks (organizer-registered, HMAC-SHA256-signed
 
 [acceptance]
 report = "acceptance-report.txt"
-command = "cd src/backend && npm install && npm run acceptance"
+command = "npm install && npm run acceptance"
 tests_total = 295
 tests_passed = 295
 
