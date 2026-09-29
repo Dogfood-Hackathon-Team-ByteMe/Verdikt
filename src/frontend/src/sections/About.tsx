@@ -1,14 +1,12 @@
 /**
  * About — the bento grid of stat cards (judges, correctness weight, prize pool,
- * time left) introducing what Verdikt is.
+ * reviews per project) introducing what Verdikt is.
  */
 import type { HackEvent } from '../api'
-import { pad, useCountdown } from '../hooks/useCountdown'
 import { AvatarStack, Card, Container, CountUp, IconBubble, Reveal, SectionLabel } from '../ui'
 
 export function About({ event, judges }: { event?: HackEvent; judges?: number }) {
-  const c = useCountdown(event?.submissions_close)
-  const pool = (event?.prizes.reduce((s, p) => s + p.amount_usd, 0) ?? 0) + 400 // + write-up quest 4 × $100
+  const pool = event?.prizes.reduce((s, p) => s + p.amount_usd, 0) || 2500
 
   return (
     <section id="about" className="scroll-mt-24 py-20 sm:py-28">
@@ -28,7 +26,7 @@ export function About({ event, judges }: { event?: HackEvent; judges?: number })
           <Reveal>
             <Card tone="blue" tilt className="flex min-h-[340px] flex-col justify-between p-5">
               <div className="relative flex items-center justify-between">
-                <span className="text-lg font-semibold tracking-[-0.04em]">DOGFOOD</span>
+                <span className="text-lg font-semibold tracking-[-0.04em]">Judging</span>
                 <span className="grid h-9 w-9 place-items-center rounded-xl bg-paper text-ink">
                   <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
                     <path d="M6 20V11M12 20V5M18 20v-6" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
@@ -54,9 +52,9 @@ export function About({ event, judges }: { event?: HackEvent; judges?: number })
               <div className="mt-auto">
                 <AvatarStack names={['Ada Park', 'Sam Ruiz', 'Lee Moss', 'Kai Obi', 'Mo Diaz', 'Ivy Chen']} max={4} />
                 <p className="mt-4 text-[1.02rem] leading-snug tracking-tight">
-                  “A clean, correct T2 scores above a broken T4 every time.”
+                  “A clean, correct build scores above a flashy broken one every time.”
                 </p>
-                <p className="mt-2 font-mono text-[0.66rem] uppercase tracking-[0.12em] text-subtle">DOGFOOD organizers</p>
+                <p className="mt-2 font-mono text-[0.66rem] uppercase tracking-[0.12em] text-subtle">Event organizers</p>
               </div>
             </Card>
           </Reveal>
@@ -69,15 +67,13 @@ export function About({ event, judges }: { event?: HackEvent; judges?: number })
                 <div className="mt-2 text-[3.2rem] leading-none tracking-[-0.05em]">
                   $<CountUp value={pool} />
                 </div>
-                <p className="mt-auto pt-6 text-sm">Top five places, best judging engine, and a write-up quest.</p>
+                <p className="mt-auto pt-6 text-sm">Set by each organizer, awarded across tracks and overall places.</p>
               </Card>
             </Reveal>
             <Reveal delay={240}>
               <Card tone="ink" interactive className="flex items-center justify-between gap-4 p-6">
-                <span className="text-sm text-white/70">Time left to build</span>
-                <span className="tnum font-mono text-[1.6rem] tracking-tight text-yellow">
-                  {c.closed ? 'Closed' : `${pad(c.days * 24 + c.hours)}:${pad(c.minutes)}:${pad(c.seconds)}`}
-                </span>
+                <span className="text-sm text-white/70">Reviews per project</span>
+                <span className="tnum font-mono text-[1.6rem] tracking-tight text-yellow">3</span>
               </Card>
             </Reveal>
           </div>

@@ -1,5 +1,5 @@
 /**
- * Landing — the public event page, in the same order as dogfoodhack.com.
+ * Landing — the public marketing page for the platform.
  *
  * Loads the featured event and the derived stats once and passes them down;
  * every section below is presentational. Visiting #ui-kit still swaps the page
@@ -10,19 +10,13 @@ import { api } from '../api'
 import { useApi } from '../hooks/useApi'
 import UiKit from './UiKit'
 import { About } from '../sections/About'
-import { Cta } from '../sections/Cta'
 import { Faq } from '../sections/Faq'
 import { Footer } from '../sections/Footer'
-import { Gallery } from '../sections/Gallery'
 import { Hero } from '../sections/Hero'
 import { HowItWorks } from '../sections/HowItWorks'
-import { LogoStrip } from '../sections/LogoStrip'
 import { Nav } from '../sections/Nav'
-import { Prizes } from '../sections/Prizes'
 import { Roles } from '../sections/Roles'
 import { Scoring } from '../sections/Scoring'
-import { Tiers } from '../sections/Tiers'
-import { Timeline } from '../sections/Timeline'
 
 function useHash() {
   const [hash, setHash] = useState(() => window.location.hash)
@@ -45,18 +39,12 @@ export default function Landing() {
     <>
       <Nav />
       <main>
-        <Hero event={event.data} judges={stats.data?.judges} />
-        <LogoStrip />
+        <Hero event={event.data} stats={stats.data} />
         <About event={event.data} judges={stats.data?.judges} />
-        <Tiers />
         <HowItWorks event={event.data} />
         <Scoring />
         <Roles />
-        <Gallery tracks={event.data?.tracks ?? []} />
-        <Timeline />
-        <Prizes event={event.data} />
         <Faq />
-        <Cta />
       </main>
       <Footer />
     </>

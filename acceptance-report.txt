@@ -1,5 +1,33 @@
+######################################################################
+# PART 1 -- Official DOGFOOD 2026 checker: python3 run.py .dogfood.toml
+# Probes the live portal. run.py has T1/T2 checks only, so it cannot
+# verify T3/T4; that proof is Part 2.
+######################################################################
+
+DOGFOOD 2026 acceptance report
+portal: http://localhost:8080
+claimed: T1 T2 T3 T4
+fixtures: fixtures.json
+
+T1  gallery is public ................. PASS
+T1  project from fixtures shown ....... PASS
+T1  closed event refuses submissions .. PASS
+T2  judge sees own scores ............. PASS
+T2  judge cannot see peer scores ...... PASS
+T2  participant blocked ............... PASS
+T2  csv export works .................. PASS
+
+claimed T1 T2 T3 T4, verified T1 T2
+note: claimed but not verified: T3 T4
+
+
+######################################################################
+# PART 2 -- Verdikt acceptance suite: node tests/backend/all.mjs
+# HTTP-level tests for every tier, each against a throwaway MongoDB.
+######################################################################
+
 Verdikt acceptance report
-Generated: 2026-09-29T11:57:41.750Z
+Generated: 2026-09-29T16:03:18.946Z
 Node: v24.18.0
 Tiers claimed: 1, 2, 3, 4
 

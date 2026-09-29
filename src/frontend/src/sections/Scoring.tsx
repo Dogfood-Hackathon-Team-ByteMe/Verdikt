@@ -4,7 +4,6 @@
  * generous) so their averages line up; the dots animate to their new positions.
  */
 import { useState } from 'react'
-import { criteria } from '../content/dogfood'
 import { Button, Card, Reveal, Section, SectionHeading } from '../ui'
 
 // Three judges score the same six projects. One is harsh, one is generous.
@@ -37,30 +36,8 @@ export function Scoring() {
     <Section id="scoring">
       <SectionHeading label="Scoring" title="Weighted by the organizer." tail="Fair across every judge." />
 
-      <div className="mt-14 grid gap-4 lg:grid-cols-5">
-        <Reveal className="min-w-0 lg:col-span-2">
-          <Card tone="ink" className="flex h-full flex-col p-6 sm:p-8">
-            <span className="text-sm text-white/60">DOGFOOD 2026 rubric</span>
-            <ul className="mt-8 flex flex-col gap-6">
-              {criteria.map((c, i) => (
-                <li key={c.name}>
-                  <div className="flex items-baseline justify-between gap-4">
-                    <span className="text-[0.98rem]">{c.name}</span>
-                    <span className="tnum font-mono text-yellow">{c.weight}%</span>
-                  </div>
-                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
-                    <Reveal className="h-full" effect="none">
-                      <div className="grow h-full rounded-full bg-yellow" style={{ width: `${c.weight * 2.5}%`, transitionDelay: `${150 + i * 120}ms` }} />
-                    </Reveal>
-                  </div>
-                </li>
-              ))}
-            </ul>
-            <p className="mt-auto pt-10 text-sm text-white/60">Five-point scale per criterion. Final score is the weighted average across judges.</p>
-          </Card>
-        </Reveal>
-
-        <Reveal className="min-w-0 lg:col-span-3" delay={100}>
+      <div className="mt-14">
+        <Reveal className="min-w-0" delay={100}>
           <Card tone="fog" className="flex h-full flex-col p-6 sm:p-8">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>

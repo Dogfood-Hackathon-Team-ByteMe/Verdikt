@@ -1,8 +1,8 @@
 /**
  * Faq — question accordion beside a short intro and a Discord link.
- * Questions live in content/dogfood.ts.
+ * Questions live in content/landing.ts.
  */
-import { faq } from '../content/dogfood'
+import { faq } from '../content/landing'
 import { Accordion, Button, Container, Reveal, SectionLabel } from '../ui'
 
 export function Faq() {
@@ -14,9 +14,9 @@ export function Faq() {
           <h2 className="headline mt-6 text-[clamp(2rem,4.6vw,3.4rem)]">
             Questions, <span className="text-subtle">answered.</span>
           </h2>
-          <p className="mt-5 max-w-sm text-muted">Something else? Ask the team on the DOGFOOD Discord.</p>
-          <Button href="https://discord.gg/xfYPDZYqeh" target="_blank" rel="noreferrer" variant="dark" icon="arrowUpRight" className="mt-8">
-            Go to Discord
+          <p className="mt-5 max-w-sm text-muted">Something else? Browse the events, or start your own from the dashboard.</p>
+          <Button href="/events" variant="dark" icon="arrowRight" className="mt-8">
+            Browse events
           </Button>
         </Reveal>
         <Reveal className="lg:col-span-3" delay={100}>

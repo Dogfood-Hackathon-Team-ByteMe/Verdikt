@@ -3,8 +3,9 @@
  * bold Space Grotesk.
  *
  * A gavel is the one object that says "a judgement was made here" without a
- * word of explanation, which is the whole product. The drawing is built for
- * 28px: bold shapes, nothing finer than ~1.5px of stroke.
+ * word of explanation, which is the whole product. The drawing is bold enough
+ * to hold up small -- nothing finer than ~1.5px of stroke on a 28-unit
+ * viewBox -- and scales cleanly up to the 40px the header renders it at.
  *
  *   - The head is a mallet, not a bar: a centre barrel with two flared end
  *     caps, which is what makes it read as "gavel" instead of "hammer".
@@ -25,9 +26,9 @@ import { cn } from './cn'
 
 export function Logo({ className, tone = 'ink' }: { className?: string; tone?: 'ink' | 'white' }) {
   return (
-    <span className={cn('inline-flex items-center gap-2', tone === 'white' ? 'text-white' : 'text-ink', className)}>
-      <GavelMark className="h-7 w-7" />
-      <span className="font-display text-[1.3rem] font-bold tracking-[-0.03em]">Verdikt</span>
+    <span className={cn('inline-flex items-center gap-2.5', tone === 'white' ? 'text-white' : 'text-ink', className)}>
+      <GavelMark className="h-10 w-10" />
+      <span className="font-display text-[1.75rem] font-bold tracking-[-0.03em]">Verdikt</span>
     </span>
   )
 }

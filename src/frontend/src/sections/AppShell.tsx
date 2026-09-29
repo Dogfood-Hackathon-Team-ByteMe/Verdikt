@@ -42,9 +42,8 @@ export function AppShell({
       <header className="sticky top-0 z-50 border-b-2 border-ink bg-nav/95 backdrop-blur-md print:hidden">
         <Container className="flex h-18 items-center justify-between gap-4">
           <div className="flex h-full items-center gap-5">
-            {/* Full header height, so the cord's `top-full` lands exactly on
-                the bottom rule and the wire reads as welded to it rather than
-                crossing it. */}
+            {/* Full header height and starting at the logo, so ThemeCord can
+                hang from the bottom of the gavel badge. */}
             <div className="relative flex h-full shrink-0 items-center">
               <Link
                 to="/"
@@ -53,7 +52,7 @@ export function AppShell({
               >
                 <Logo />
               </Link>
-              <ThemeCord className="right-1" />
+              <ThemeCord />
             </div>
 
             <span className="hidden h-7 w-px shrink-0 bg-line sm:block" aria-hidden="true" />

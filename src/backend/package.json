@@ -15,7 +15,7 @@
     "test:auth": "node ../../tests/backend/stageB.auth.mjs",
     "test:t1": "node ../../tests/backend/stageC.t1.mjs",
     "test:seed": "node ../../tests/backend/stageD.seed.mjs",
-    "acceptance": "node ../../tests/backend/all.mjs --report ../../acceptance-report.txt"
+    "acceptance": "node ../../scripts/acceptance-report.mjs"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

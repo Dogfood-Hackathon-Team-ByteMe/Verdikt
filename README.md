@@ -19,7 +19,7 @@ and judging you can audit. One command, no cloud account.
 **[Architecture](#architecture)** ·
 **[Limits](#honest-limits)**
 
-<img src="docs/landing.png" alt="The Verdikt landing page, with a live standings card in the hero" width="820">
+<img src="docs/landing.png" alt="The Verdikt landing page: the headline, an interactive 3D cube of the hackathon lifecycle, and live platform stats" width="820">
 
 </div>
 
@@ -176,7 +176,8 @@ npm test
 # The simulation behind the table above
 npm run normalization-proof
 
-# The same suite, writing the receipt to acceptance-report.txt
+# The receipt: the official run.py checker, then this suite, written together
+# to acceptance-report.txt (run.py needs the live stack -- see below)
 npm run acceptance
 ```
 
@@ -202,28 +203,52 @@ refusals — and cleans up everything it creates.
 
 </details>
 
-<details>
-<summary><b>The independent acceptance checker</b> — the graders' own script</summary>
+### The official checker (`run.py`)
 
-<br>
+`run.py` and `fixtures.json` are the organisers' files, so they are not
+committed — put both in the repo root. With `docker compose up` running:
 
 ```bash
-cd src/backend
-npm run import-fixtures     # loads a second, already-closed event
-npm run dogfood-config      # mints session cookies into .dogfood.toml
-cd ../.. && python run.py .dogfood.toml
+# 1. Load the fixture event (already closed) alongside the seeded one
+docker cp fixtures.json verdikt-api:/tmp/fixtures.json
+docker compose exec api node scripts/import-fixtures.js /tmp/fixtures.json
+
+# 2. Mint fresh session cookies and fixture ids into .dogfood.toml
+#    (cookies expire after 24 hours; Mongo is not exposed to the host,
+#    so this runs inside the API container)
+docker compose exec -T api sh -c 'cat > /tmp/manifest.toml' < .dogfood.toml
+docker compose exec -T api node scripts/dogfood-config.js /tmp/manifest.toml
+docker compose exec -T api cat /tmp/manifest.toml > .dogfood.toml.new && mv .dogfood.toml.new .dogfood.toml
+
+# 3. Run it
+python3 run.py .dogfood.toml
 ```
 
-The imported event's deadline is in the past, so "closed events refuse
-submissions" is checked against real closed data rather than asserted.
+```
+T1  gallery is public ................. PASS
+T1  project from fixtures shown ....... PASS
+T1  closed event refuses submissions .. PASS
+T2  judge sees own scores ............. PASS
+T2  judge cannot see peer scores ...... PASS
+T2  participant blocked ............... PASS
+T2  csv export works .................. PASS
 
-</details>
+claimed T1 T2 T3 T4, verified T1 T2
+note: claimed but not verified: T3 T4
+```
+
+All seven pass. The closing note is expected: `run.py` has probes for T1 and
+T2 only, so it cannot verify any tier above T2 — for any team. The proof for
+T3 and T4 is our suite (stageI–stageM), which is Part 2 of the acceptance
+report. The fixture event's deadline is in the past, so "closed event refuses
+submissions" is refused by the server for the deadline, as a real team member —
+not for want of a login.
 
 **If you are reviewing this**, the evidence for each rubric line lives here:
 
 | Criterion | Where to look |
 |---|---|
-| Tier completion and correctness | [`acceptance-report.txt`](acceptance-report.txt) · `python run.py .dogfood.toml` · [`.dogfood.toml`](.dogfood.toml) claims only what the acceptance suite proves over HTTP |
+| Tier completion and correctness | [`acceptance-report.txt`](acceptance-report.txt) — Part 1 is the official `run.py` (7/7, T1–T2), Part 2 our 295-test suite (T1–T4) · [`.dogfood.toml`](.dogfood.toml) claims only what those prove |
 | Judging integrity | [JUDGING.md](JUDGING.md) · `src/backend/services/JudgeScope.js` · `tests/backend/stageF`–`stageJ` |
 | Adoptability and operability | This file · `docker compose up` · [ARCHITECTURE.md](ARCHITECTURE.md) · [DATA-MODEL.md](DATA-MODEL.md) |
 | Code quality and innovation | `src/backend/utils/normalization.js` and its proof · the per-event role model in `src/backend/utils/eventRoles.js` |
@@ -270,10 +295,12 @@ ranking exactly, so an organizer leaves as easily as they arrived. And the
 **REST API** the SPA itself drives (every UI action goes through it) is
 documented as OpenAPI 3.0, served at `/api/v1/openapi.json`.
 
-`.dogfood.toml` claims all four tiers, because the acceptance report proves
-all four over HTTP. The bundled `run.py` checker only carries probes for T1
-and T2, so it verifies those two and lists T3 and T4 as claimed on the
-strength of the acceptance suite.
+`.dogfood.toml` claims all four tiers, and
+[`acceptance-report.txt`](acceptance-report.txt) holds the proof in two parts.
+**Part 1** is the official `run.py` checker against the live portal: 7 of 7
+checks pass, verifying T1 and T2 — the only tiers it has probes for. **Part 2**
+is our own suite: 295 of 295 HTTP-level tests pass, covering all four tiers,
+which is where T3 and T4 are proven.
 
 ---
 
@@ -364,12 +391,14 @@ src/
 tests/
   backend/        295 HTTP-level tests (stageB … stageM), run against
                   src/backend over real HTTP
+scripts/
+  acceptance-report.mjs   `npm run acceptance`: run.py, then the suite
 API.md          the public /api/v1 surface and its three promises
 docs/           the screenshots in this file
 JUDGING.md      how ballots become a ranking, and the proof
 ARCHITECTURE.md system design and the reasoning behind it
 DATA-MODEL.md   collections, indexes, import/export
-acceptance-report.txt
+acceptance-report.txt   Part 1 official run.py · Part 2 the 295-test suite
 ```
 
 </details>

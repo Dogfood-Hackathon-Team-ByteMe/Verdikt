@@ -486,9 +486,12 @@ check('every row carries the fields the table renders', () => {
 check('ranks run best-first and ties share a rank', () => {
     const ranked = standings.standings.filter((r) => r.rank !== null);
     assert(ranked.length > 0, 'nothing is ranked');
+    // Rank follows the score of the method in use; with normalization the raw
+    // score may legitimately disagree with the order.
+    const score = standings.method === 'raw' ? 'weighted_score' : 'normalized_score';
     for (let i = 1; i < ranked.length; i++) {
         assert(
-            ranked[i - 1].weighted_score >= ranked[i].weighted_score,
+            ranked[i - 1][score] >= ranked[i][score],
             `row ${i} scores higher than the row above it`,
         );
         assert(ranked[i].rank >= ranked[i - 1].rank, 'ranks are not monotonic');

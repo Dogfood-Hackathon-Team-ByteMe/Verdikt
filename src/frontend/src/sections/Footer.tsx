@@ -1,19 +1,20 @@
 /**
- * Footer — MLH-style sign-off: the mark and a line about the project, link
+ * Footer — sign-off: the mark and a line about the project, link
  * columns, then the oversized wordmark and the legal row.
  */
 import { Link } from 'react-router-dom'
-import { Container, Logo } from '../ui'
+import { Container, Logo, cn } from '../ui'
 import { isAnchor, navLinks } from './Nav'
 
+const WORDMARK_FILLS = ['group-hover:text-blue', 'group-hover:text-red', 'group-hover:text-yellow']
+
 const columns = [
-  { title: 'The event', links: navLinks.slice(0, 4) },
-  { title: 'Details', links: navLinks.slice(4) },
+  { title: 'Explore', links: navLinks.slice(0, 3) },
+  { title: 'Learn', links: navLinks.slice(3) },
   {
     title: 'Elsewhere',
     links: [
-      { href: 'https://dogfoodhack.com', label: 'dogfoodhack.com' },
-      { href: 'https://discord.gg/xfYPDZYqeh', label: 'Discord' },
+      { href: '/dashboard', label: 'Dashboard' },
       { href: '#ui-kit', label: 'UI kit' },
     ],
   },
@@ -27,7 +28,7 @@ export function Footer() {
           <div className="max-w-xs">
             <Logo />
             <p className="mt-4 font-mono text-[0.85rem] leading-relaxed text-muted">
-              Open, self-hostable hackathon submissions and judging. Built by team Verdikt for DOGFOOD 2026.
+              Open, self-hostable hackathon submissions and judging. Host an event, enter one, or judge — all in one place.
             </p>
           </div>
           {columns.map((col) => (
@@ -64,18 +65,27 @@ export function Footer() {
           ))}
         </div>
 
-        {/* Oversized wordmark, outlined so it reads as a graphic rather than a heading */}
+        {/* Oversized wordmark, outlined so it reads as a graphic rather than a
+            heading. On hover each letter fills in turn, cycling the kit's
+            three primaries. */}
         <div
-          className="headline mt-16 select-none text-center text-[clamp(4rem,20vw,16rem)] leading-[0.8] text-transparent transition-all duration-500 hover:text-yellow"
+          className="group headline mt-16 select-none text-center text-[clamp(4rem,20vw,16rem)] leading-[0.8] text-transparent"
           style={{ WebkitTextStroke: '2px var(--color-ink)' }}
           aria-hidden="true"
         >
-          Verdikt
+          {'Verdikt'.split('').map((ch, i) => (
+            <span
+              key={i}
+              className={cn('transition-colors duration-500', WORDMARK_FILLS[i % WORDMARK_FILLS.length])}
+              style={{ transitionDelay: `${i * 45}ms` }}
+            >
+              {ch}
+            </span>
+          ))}
         </div>
 
         <div className="mt-8 flex flex-wrap justify-between gap-4 border-t-2 border-ink pt-6 font-mono text-[0.72rem] uppercase tracking-[0.05em] text-subtle">
           <span>© 2026 Team Verdikt · MIT</span>
-          <span>Not affiliated with Hackathon Raptors or MLH</span>
         </div>
       </Container>
     </footer>

@@ -19,10 +19,8 @@ export const navLinks = [
   { href: '#about', label: 'About' },
   { href: '/projects', label: 'Projects' },
   { href: '/events', label: 'Events' },
-  { href: '#tiers', label: 'Tiers' },
+  { href: '#how', label: 'How it works' },
   { href: '#scoring', label: 'Scoring' },
-  { href: '#timeline', label: 'Timeline' },
-  { href: '#prizes', label: 'Prizes' },
   { href: '#faq', label: 'FAQ' },
 ]
 
@@ -49,13 +47,13 @@ export function Nav() {
       style={{ top: 'env(safe-area-inset-top, 0px)' }}
     >
       <Container className="flex h-18 items-center justify-between gap-4">
-        {/* Full header height, so the cord's `top-full` lands on the bottom
-            rule and the wire hangs off the bar rather than crossing it. */}
+        {/* Full header height and starting at the logo, so ThemeCord can hang
+            from the bottom of the gavel badge. */}
         <div className="relative flex h-full shrink-0 items-center">
           <a href="#top" aria-label="Verdikt home" className="flex items-center transition-transform duration-200 hover:-translate-y-0.5">
             <Logo />
           </a>
-          <ThemeCord className="right-1" solid={scrolled || open} />
+          <ThemeCord />
         </div>
 
         <nav aria-label="Main" className="hidden items-center gap-1 lg:flex">
@@ -134,7 +132,7 @@ export function Nav() {
               <li className="flex flex-col gap-2 py-4">
                 {user ? (
                   <>
-                    <Button href="#host" icon="arrowRight" className="w-full" onClick={() => setOpen(false)}>
+                    <Button href="/organizer" icon="arrowRight" className="w-full" onClick={() => setOpen(false)}>
                       Host an event
                     </Button>
                     <Button variant="outline" className="w-full" onClick={() => { setOpen(false); void signOut() }}>

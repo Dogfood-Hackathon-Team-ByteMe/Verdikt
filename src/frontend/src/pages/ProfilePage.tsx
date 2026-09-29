@@ -155,10 +155,12 @@ function EditProfile({ onSaved }: { onSaved: () => Promise<void> }) {
     setBusy(true)
     setError(null)
     try {
+      // Only what changed: a picture-only save must not be refused over a field
+      // the user never touched (e.g. an account with no name yet).
       await authApi.updateProfile(user.id, {
-        name,
-        email,
-        avatar_url: avatar,
+        ...(name !== (user.name ?? '') ? { name } : {}),
+        ...(email !== user.email ? { email } : {}),
+        ...(avatar !== (user.avatar_url ?? '') ? { avatar_url: avatar } : {}),
         // The server refuses a password change without the current one, so
         // both travel together or neither does.
         ...(password ? { password, current_password: currentPassword } : {}),
@@ -201,9 +203,14 @@ function EditProfile({ onSaved }: { onSaved: () => Promise<void> }) {
           onChange={(e) => setEmail(e.target.value)}
         />
         <div className="flex flex-col gap-4 border-t border-line pt-4">
+          {/* new-password stops the browser autofilling the saved password
+              here, which would silently turn every save into a password
+              change and hold the Save button until "current password" was
+              typed -- blocking even a picture-only change. */}
           <Field
             label="New password"
             reveal
+            autoComplete="new-password"
             hint="Leave blank to keep the one you have."
             value={password}
             disabled={busy}
@@ -215,6 +222,7 @@ function EditProfile({ onSaved }: { onSaved: () => Promise<void> }) {
             <Field
               label="Current password"
               reveal
+              autoComplete="current-password"
               hint="Required to change your password."
               value={currentPassword}
               disabled={busy}

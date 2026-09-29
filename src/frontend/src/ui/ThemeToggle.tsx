@@ -91,36 +91,32 @@ function ThemeIcons({ dark, size = 18 }: { dark: boolean; size?: number }) {
 }
 
 /**
- * ThemeCord — a pull-cord dangling off the end of the wordmark.
+ * ThemeCord — a pull-cord hanging from the bottom of the logo's gavel badge.
  *
- * It hangs *below* the header bar, which is the whole idea, so it is kept
- * deliberately short: cord plus bob comes to 38px, and every page's content
- * starts at least 48px below the header, so it never lands on a heading.
- * The positioning wrapper owns the horizontal centring and the bob owns the
- * rotation, because one element cannot both be translated and swung without
- * the two transforms fighting.
+ * Place it in a `relative`, full-header-height box that starts where the Logo
+ * starts. The cord begins at the badge's bottom edge (the 40px badge is
+ * vertically centred, so that is 50% + 20px) and runs down past the header
+ * rule, so the bob hangs just below the bar. Cord below the bar plus bob is
+ * about 40px, and every page's content starts at least 48px below the header,
+ * so it never lands on a heading. The bob is opaque so it stays legible over
+ * whatever scrolls beneath it.
+ *
+ * The positioning wrapper owns the horizontal centring and the button owns the
+ * swing, because one element cannot both be translated and rotated without the
+ * two transforms fighting.
  */
-export function ThemeCord({ className, solid = true }: { className?: string; solid?: boolean }) {
+export function ThemeCord({ className }: { className?: string }) {
   const { dark, toggle } = useTheme()
   const [yanking, setYanking] = useState(false)
 
   return (
     <span
-      className={cn('pointer-events-none absolute top-full z-40 flex flex-col items-center', className)}
-      aria-hidden={false}
+      className={cn(
+        'pointer-events-none absolute left-5 top-[calc(50%+20px)] z-40 flex -translate-x-1/2 flex-col items-center',
+        className,
+      )}
     >
-      {/* The housing hangs the cord off the bar as a tab. It matters that it
-          is opaque: the header floats over the page, so without it the bob
-          lands on whatever text happens to be scrolling underneath. On a
-          header that is itself transparent (the landing page before it is
-          scrolled) the housing drops away too, rather than being a lone box
-          floating over the hero. */}
-      <span
-        className={cn(
-          'pointer-events-auto flex flex-col items-center px-1.5 pb-1.5',
-          solid && 'rounded-b-btn border-x-2 border-b-2 border-ink bg-nav',
-        )}
-      >
+      <span className="pointer-events-auto flex flex-col items-center">
       <button
         type="button"
         onClick={() => {
@@ -144,8 +140,8 @@ export function ThemeCord({ className, solid = true }: { className?: string; sol
           'focus-visible:ring-2 focus-visible:ring-blue',
         )}
       >
-        {/* The cord. */}
-        <span className="h-3.5 w-[2px] rounded-full bg-ink" aria-hidden="true" />
+        {/* The cord: from the badge, through the header rule, to the bob. */}
+        <span className="h-8 w-[2px] rounded-full bg-ink" aria-hidden="true" />
         {/* The bob: the thing you actually pull. */}
         <span
           className={cn(

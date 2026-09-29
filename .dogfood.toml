@@ -3,6 +3,7 @@
 [project]
 name = "Verdikt"
 tagline = "Open, self-hostable hackathon submissions and judging."
+pitch = "Run a hackathon end to end -- teams, submissions, a blind weighted-rubric panel normalized across judges -- and publish a result you can defend, from one docker compose up."
 repo = "https://github.com/Dogfood-Hackathon-Team-ByteMe/Verdikt"
 license = "MIT"
 
@@ -42,8 +43,18 @@ t4 = "complete"  # webhooks (organizer-registered, HMAC-SHA256-signed
                  # Proof: HTTP-level suites stageK-stageM in the report.
 
 [acceptance]
+# acceptance-report.txt has two parts, both written by `npm run acceptance`:
+#   Part 1  the official checker, `python3 run.py .dogfood.toml`, run against
+#           the live portal with fixtures.json imported. It has T1/T2 probes
+#           only, so it can verify nothing past T2.
+#   Part 2  our suite, tests/backend/all.mjs: HTTP-level tests for T1-T4, each
+#           against a throwaway MongoDB. This is the T3/T4 proof.
 report = "acceptance-report.txt"
 command = "npm install && npm run acceptance"
+official_checker = "python3 run.py .dogfood.toml"
+official_checks_total = 7
+official_checks_passed = 7
+official_verified = ["T1", "T2"]
 tests_total = 295
 tests_passed = 295
 
@@ -102,10 +113,10 @@ openapi          = "GET /api/v1/openapi.json"
 # Bare paths used by run.py. It appends nothing and sends no method,
 # so each of these is a complete URL path.
 gallery      = "/api/projects"
-submit       = "/api/projects/6ab919034094777524ec213c/submit"
+submit       = "/api/projects/6abbd93ef9a2d557ce10d814/submit"
 judge_scores = "/api/judge/scores"
-peer_scores  = "/api/scores?judge=6ab8d8933c07ed286e6c8ad9"
-csv_export   = "/api/export.csv?eventId=6ab919024094777524ec2030"
+peer_scores  = "/api/scores?judge=6abbd93df9a2d557ce10d68d"
+csv_export   = "/api/export.csv?eventId=6abbd93df9a2d557ce10d708"
 [demo]
 password = "dogfood2026"
 admin = "admin@verdikt.dev"
@@ -133,7 +144,7 @@ base_url = "http://localhost:8080"
 [auth]
 # Session cookies, minted by `npm run dogfood-config`. They expire after
 # 24 hours -- re-run that command before a grading pass.
-participant = "Cookie: session=2103d0340dbe79fe5f7ca30596a7c7c2c2c5071bc31a76ab2a3af7f0bf9ee941"
-judge_a = "Cookie: session=d03bce61572d2b03cd7e5104514c5670046c227c673d6e02411ceba2d7c7b19e"
-judge_b = "Cookie: session=a74c5dc76f34f7de9654219c3f189ee0d73628e5af43ff28fd201257ff0929ef"
-organizer = "Cookie: session=700b0a8b696de6aa942ff7154721f10b8e7493342e1d17eed79ebe75c295638c"
+participant = "Cookie: session=5057656b2127925dd4e5728e3d48bd08211d83b50d1c8e762197817e665a342b"
+judge_a = "Cookie: session=3bf528e1124ba4496d167d676d2e8bc65e331dc506a59a9c285f6ddc819a7484"
+judge_b = "Cookie: session=ff691b313f42b2adc550cb1ad6e7d686f50929a3eeb64515f0da7c81c2cb5b14"
+organizer = "Cookie: session=b23bc66bff996ea4a4ea8d554490402205bb36920c2e863fcc317004ae02fdfa"

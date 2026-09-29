@@ -1,6 +1,7 @@
 import bcrypt from "bcrypt";
 import * as userRepository from "../repositories/UserRepository.js";
 import Track from "../models/Track.js";
+import { toPublicUser } from "../utils/sanitize.js";
 
 const SALT_ROUNDS = 12;
 
@@ -27,7 +28,7 @@ export const createUser = async (data, requestingUser) => {
 
 	// Explicit allow-list. isAdmin is honoured only because the caller is
 	// already an admin, checked above.
-	return await userRepository.create({
+	const created = await userRepository.create({
 		email,
 		password: await bcrypt.hash(data.password, SALT_ROUNDS),
 		name: data.name ? String(data.name).trim() : undefined,
@@ -36,6 +37,7 @@ export const createUser = async (data, requestingUser) => {
 		judgeIn: [],
 		organiserIn: [],
 	});
+	return toPublicUser(created);
 };
 
 export const getUserById = async (id) => {
@@ -139,7 +141,8 @@ export const updateUser = async (id, updateData, requestingUser) => {
 	const user = await userRepository.update(id, safe);
 	if (!user)
 		throw Object.assign(new Error("User not found"), { statusCode: 404 });
-	return user;
+	// The update returns the full document, bcrypt hash included.
+	return toPublicUser(user);
 };
 
 export const deleteUser = async (id, requestingUser) => {

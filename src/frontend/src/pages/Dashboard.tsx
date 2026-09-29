@@ -1,137 +1,192 @@
 /**
- * Dashboard — what a signed-in participant needs to see first: how long is
- * left, whether they have a team, and whether their project is submitted.
+ * Dashboard — the signed-in home. Leads with the hackathons this account is
+ * taking part in (searchable and filterable by deadline), then the certificates
+ * it holds and any outstanding notifications.
  *
- * The backend has no "my teams" endpoint, so the team is found by filtering
- * the public team list for one containing this user. That is a small amount of
- * over-fetching in exchange for not blocking on a new endpoint; if the list
- * grows past a few hundred teams it should become GET /api/teams?member=me.
+ * "Participating in" is derived client-side: the backend has no "my events"
+ * endpoint, so we cross the public event list with the teams this user is a
+ * member of, plus any event that already lists them as a participant. That is a
+ * little over-fetching in exchange for not blocking on a new endpoint.
  */
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api'
-import type { Team } from '../api/types'
+import type { Certificate, HackEvent, Project, Team } from '../api/types'
 import { useAuth } from '../auth/AuthProvider'
+import { standingIn } from '../auth/participation'
 import { useApi } from '../hooks/useApi'
 import { useCountdown } from '../hooks/useCountdown'
 import { AppShell, PageHeading } from '../sections/AppShell'
-import { Alert, Badge, Button, Card, Container, Field, Icon } from '../ui'
+import { Badge, Button, Card, Chip, Container, CountUp, Icon, Reveal, SearchField, cn } from '../ui'
+
+type Filter = 'all' | 'open' | 'closed'
+type Sort = 'deadline' | 'recent'
+
+const FILTERS: { id: Filter; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'open', label: 'Open' },
+  { id: 'closed', label: 'Closed' },
+]
+
+const isClosed = (e: HackEvent) => new Date(e.submissions_close) < new Date()
 
 export default function Dashboard() {
   const { user } = useAuth()
-  const event = useApi(() => api.getFeaturedEvent())
+  const events = useApi(() => api.listEvents())
   const teams = useApi(() => api.listTeams())
-  const [refreshKey, setRefreshKey] = useState(0)
+  const projects = useApi(() => api.listProjects({}))
+  const certs = useApi(() => api.myCertificates())
 
-  const myTeam: Team | undefined = teams.data?.find((t) => t.members.some((m) => m.id === user?.id))
-  const projects = useApi(
-    () => (myTeam ? api.listProjects({ event_id: myTeam.event_id }) : Promise.resolve([])),
-    [myTeam?.id, refreshKey],
+  const [q, setQ] = useState('')
+  const [filter, setFilter] = useState<Filter>('all')
+  const [sort, setSort] = useState<Sort>('deadline')
+
+  const myTeams = useMemo(
+    () => (teams.data ?? []).filter((t) => user && t.members.some((m) => m.id === user.id)),
+    [teams.data, user],
   )
-  const myProject = projects.data?.find((p) => p.team_id === myTeam?.id)
 
-  const countdown = useCountdown(event.data?.submissions_close)
-  const closed = Boolean(event.data && new Date(event.data.submissions_close) < new Date())
+  /** Every event this account is entered in, by team or by standing. */
+  const myEvents = useMemo(
+    () =>
+      (events.data ?? []).filter(
+        (e) => myTeams.some((t) => t.event_id === e.id) || standingIn(user, e) === 'participant',
+      ),
+    [events.data, myTeams, user],
+  )
+
+  const matches = useMemo(() => {
+    const needle = q.trim().toLowerCase()
+    return (e: HackEvent) =>
+      !needle ||
+      [e.name, e.tagline, ...e.tracks.map((t) => t.name)]
+        .filter(Boolean)
+        .some((field) => String(field).toLowerCase().includes(needle))
+  }, [q])
+
+  const passesFilter = (e: HackEvent) =>
+    filter === 'all' || (filter === 'open' && !isClosed(e)) || (filter === 'closed' && isClosed(e))
+
+  const shown = useMemo(() => {
+    const list = myEvents.filter((e) => matches(e) && passesFilter(e))
+    return [...list].sort((a, b) =>
+      sort === 'deadline'
+        ? new Date(a.submissions_close).getTime() - new Date(b.submissions_close).getTime()
+        : new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime(),
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myEvents, matches, filter, sort])
+
+  const countFor = (id: Filter) =>
+    myEvents.filter(
+      (e) => matches(e) && (id === 'all' || (id === 'open' && !isClosed(e)) || (id === 'closed' && isClosed(e))),
+    ).length
+
+  const openEvents = myEvents.filter((e) => !isClosed(e))
+  const nextDeadline = openEvents
+    .map((e) => new Date(e.submissions_close))
+    .sort((a, b) => a.getTime() - b.getTime())[0]
+
+  const projectFor = (team?: Team): Project | undefined =>
+    team ? projects.data?.find((p) => p.team_id === team.id) : undefined
+
+  const loading = events.loading && !events.data
 
   return (
     <AppShell>
       <Container className="py-12 sm:py-16">
-        <PageHeading label="Dashboard" title="Your" tail="event.">
-          {event.data?.name ?? 'Loading the event...'}
+        <PageHeading label="Dashboard" title="Your" tail="hackathons.">
+          {user?.name ? `Welcome back, ${user.name}.` : 'Welcome back.'} Everything you are building for, in one place.
         </PageHeading>
 
-        <div className="mt-10 grid gap-5 lg:grid-cols-3">
-          {/* Deadline */}
+        {/* Summary figures */}
+        <div className="mt-10 grid gap-4 sm:grid-cols-3">
+          <SummaryTile label="Participating in" tone="bg-red" value={myEvents.length} suffix={myEvents.length === 1 ? 'event' : 'events'} />
+          <SummaryTile label="Certificates earned" tone="bg-blue" value={certs.data?.length ?? 0} suffix={(certs.data?.length ?? 0) === 1 ? 'record' : 'records'} />
           <Card tone="ink" className="p-6">
-            <div className="label-mono text-yellow">
-              {closed ? 'Submissions closed' : 'Time left to submit'}
-            </div>
-            {closed ? (
-              <p className="mt-4 font-mono text-[0.9rem] text-slab-fg/70">
-                The window shut. Submitted work is locked and visible in the gallery.
-              </p>
-            ) : (
-              <div className="mt-4 flex gap-4 tnum">
-                {[
-                  ['days', countdown.days],
-                  ['hrs', countdown.hours],
-                  ['min', countdown.minutes],
-                  ['sec', countdown.seconds],
-                ].map(([label, value]) => (
-                  <div key={label as string}>
-                    <div className="headline text-[2rem] leading-none">{String(value).padStart(2, '0')}</div>
-                    <div className="label-mono mt-1 text-slab-fg/50">{label}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
-
-          {/* Team */}
-          <Card tone="paper" className="p-6">
-            <div className="label-mono text-red">Your team</div>
-            {teams.loading ? (
-              <p className="mt-4 font-mono text-[0.85rem] text-subtle">Loading...</p>
-            ) : myTeam ? (
+            <div className="label-mono text-yellow">Next deadline</div>
+            {nextDeadline ? (
               <>
-                <div className="headline mt-3 text-[1.5rem]">{myTeam.name}</div>
-                <div className="mt-2 font-mono text-[0.8rem] text-muted">
-                  {myTeam.members.length} of {event.data?.max_team_size ?? 4} members
+                <div className="headline mt-3 text-[1.6rem] leading-none">
+                  {nextDeadline.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
                 </div>
-                <div className="mt-4 flex flex-wrap gap-1.5">
-                  {myTeam.members.map((m) => (
-                    <span key={m.id} className="rounded-full bg-fog px-2.5 py-1 font-mono text-[0.7rem]">
-                      {m.name || m.email}
-                    </span>
-                  ))}
+                <div className="mt-2 font-mono text-[0.78rem] text-slab-fg/60">
+                  {nextDeadline.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
                 </div>
-                <Button href={`/teams/${myTeam.id}`} variant="outline" size="sm" className="mt-5">
-                  Manage team
-                </Button>
               </>
             ) : (
-              <CreateTeamCard eventId={event.data?.id} onCreated={() => teams.reload()} />
-            )}
-          </Card>
-
-          {/* Project */}
-          <Card tone="paper" className="p-6">
-            <div className="label-mono text-red">Your submission</div>
-            {!myTeam ? (
-              <p className="mt-4 font-mono text-[0.85rem] text-muted">Create or join a team first.</p>
-            ) : myProject ? (
-              <>
-                <div className="mt-3 flex items-start justify-between gap-3">
-                  <div className="headline text-[1.5rem]">{myProject.title}</div>
-                  <Badge variant={myProject.status === 'submitted' ? 'green' : 'outline'}>
-                    {myProject.status}
-                  </Badge>
-                </div>
-                <p className="mt-3 font-mono text-[0.82rem] text-muted">
-                  {myProject.status === 'submitted'
-                    ? 'Submitted. You can still edit until the deadline.'
-                    : 'Still a draft. It will not be judged unless you submit it.'}
-                </p>
-                <Button href={`/projects/${myProject.id}/edit`} size="sm" className="mt-5" icon="arrowRight">
-                  {myProject.status === 'submitted' ? 'Edit submission' : 'Finish and submit'}
-                </Button>
-              </>
-            ) : (
-              <CreateProjectCard teamId={myTeam.id} disabled={closed} onCreated={() => setRefreshKey((k) => k + 1)} />
+              <p className="mt-4 font-mono text-[0.85rem] text-slab-fg/60">No open deadlines right now.</p>
             )}
           </Card>
         </div>
 
-        {/* A draft with the clock running is the one thing worth nagging about. */}
-        {myProject?.status === 'draft' && !closed && (
-          <Alert tone="danger" className="mt-8">
-            Your project is still a draft. Drafts are not judged &mdash; submit before the deadline.
-          </Alert>
+        {/* Toolbar: search, deadline filters, sort */}
+        <div className="mt-12 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <SearchField
+            id="dashboard-search"
+            label="Search your hackathons"
+            placeholder="Search by name, tagline or track"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            className="w-full lg:max-w-md"
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            {FILTERS.map((f) => (
+              <Chip key={f.id} active={filter === f.id} onClick={() => setFilter(f.id)} count={events.data ? countFor(f.id) : undefined}>
+                {f.label}
+              </Chip>
+            ))}
+            <span className="mx-1 hidden h-6 w-px bg-line sm:block" aria-hidden="true" />
+            <Chip active={sort === 'deadline'} onClick={() => setSort('deadline')}>
+              Deadline
+            </Chip>
+            <Chip active={sort === 'recent'} onClick={() => setSort('recent')}>
+              Newest
+            </Chip>
+          </div>
+        </div>
+
+        {loading ? (
+          <p className="mt-10 label-mono text-subtle" role="status">
+            Loading your hackathons
+          </p>
+        ) : myEvents.length === 0 ? (
+          <Card tone="paper" className="mt-6 p-8 text-center">
+            <p className="font-mono text-[0.9rem] text-muted">
+              You have not entered a hackathon yet. Browse what is running and enter the one you want to build for.
+            </p>
+            <Button href="/events" className="mt-5" icon="arrowRight">
+              Browse events
+            </Button>
+          </Card>
+        ) : (
+          <>
+            <div className="mt-6 label-mono text-subtle" aria-live="polite">
+              {shown.length} {shown.length === 1 ? 'hackathon' : 'hackathons'}
+            </div>
+            {shown.length === 0 ? (
+              <Card tone="paper" className="mt-4 p-7 text-center">
+                <p className="font-mono text-[0.9rem] text-muted">Nothing matches that. Try a different search or filter.</p>
+              </Card>
+            ) : (
+              <div className="mt-4 grid gap-5 lg:grid-cols-2">
+                {shown.map((event, i) => (
+                  <Reveal key={event.id} delay={Math.min(i, 8) * 60}>
+                    <EventCard
+                      event={event}
+                      team={myTeams.find((t) => t.event_id === event.id)}
+                      project={projectFor(myTeams.find((t) => t.event_id === event.id))}
+                    />
+                  </Reveal>
+                ))}
+              </div>
+            )}
+          </>
         )}
 
-        <Notifications />
+        <MyCertificates rows={certs.data ?? []} />
 
-        <MyCertificates />
+        <Notifications />
 
         <div className="mt-12 flex flex-wrap gap-3">
           <Button href="/projects" variant="outline" icon="arrowRight">
@@ -140,10 +195,6 @@ export default function Dashboard() {
           <Button href="/events" variant="outline" icon="arrowRight">
             Browse events
           </Button>
-          {/* Offered to everyone, not just people who already run something:
-              hosting is an action any account can take, and hiding this was
-              the only thing standing between a participant and their first
-              event. The label just reflects whether they have one yet. */}
           {user && (
             <Button href="/organizer" variant="outline" icon="arrowRight">
               {(user.organiser_in.length ?? 0) > 0 ? 'Manage your events' : 'Host an event'}
@@ -155,14 +206,90 @@ export default function Dashboard() {
   )
 }
 
+function SummaryTile({ label, value, suffix, tone }: { label: string; value: number; suffix: string; tone: string }) {
+  return (
+    <Card tone="paper" className="p-6">
+      <span className={cn('mb-3 block h-2 w-8 rounded-full', tone)} aria-hidden="true" />
+      <div className="headline text-[2.4rem] leading-none">
+        <CountUp value={value} />
+      </div>
+      <div className="label-mono mt-2 text-muted">{label}</div>
+      <div className="mt-0.5 font-mono text-[0.72rem] text-subtle">{suffix}</div>
+    </Card>
+  )
+}
+
+/** One hackathon this account is in: standing, team, submission, deadline. */
+function EventCard({ event, team, project }: { event: HackEvent; team?: Team; project?: Project }) {
+  const c = useCountdown(event.submissions_close)
+  const closed = c.closed
+
+  return (
+    <Card tone="paper" interactive className="flex h-full flex-col p-6">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="headline text-[1.35rem] leading-tight">{event.name}</h2>
+          {event.tagline && <p className="mt-1 line-clamp-1 font-mono text-[0.78rem] text-muted">{event.tagline}</p>}
+        </div>
+        <Badge variant={closed ? 'outline' : 'green'} dot={!closed} className="shrink-0">
+          {closed ? 'Closed' : `${c.days}d ${c.hours}h left`}
+        </Badge>
+      </div>
+
+      <dl className="mt-5 grid grid-cols-3 gap-2 border-y border-line py-4 font-mono text-[0.72rem]">
+        <Stat label="Your team" value={team?.name ?? '—'} />
+        <Stat label="Submission" value={project ? project.status : 'None yet'} />
+        <Stat label="Closes" value={new Date(event.submissions_close).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} />
+      </dl>
+
+      {project?.status === 'draft' && !closed && (
+        <p className="mt-3 flex items-center gap-2 font-mono text-[0.76rem] text-danger">
+          <Icon name="bolt" size={13} className="shrink-0" />
+          Still a draft — submit it before the deadline.
+        </p>
+      )}
+
+      <div className="mt-auto flex flex-wrap gap-2 pt-5">
+        {project ? (
+          <Button href={`/projects/${project.id}/edit`} size="sm" icon="arrowRight">
+            {project.status === 'submitted' ? 'Edit submission' : 'Finish and submit'}
+          </Button>
+        ) : team ? (
+          <Button href={`/teams/${team.id}`} size="sm" icon="arrowRight">
+            Start your project
+          </Button>
+        ) : (
+          <Button href={`/events`} size="sm" icon="arrowRight">
+            Enter a team
+          </Button>
+        )}
+        {team && (
+          <Button href={`/teams/${team.id}`} size="sm" variant="outline">
+            Manage team
+          </Button>
+        )}
+        <Button href={`/projects?event=${event.id}`} size="sm" variant="ghost">
+          Projects
+        </Button>
+      </div>
+    </Card>
+  )
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <dt className="label-mono truncate text-subtle">{label}</dt>
+      <dd className="mt-0.5 truncate font-bold capitalize text-ink">{value}</dd>
+    </div>
+  )
+}
+
 /**
  * The certificates issued to this account (T4), each with its public
- * verification link. Rendered only when there is at least one -- a
- * participant mid-event has no certificate yet and no use for the space.
+ * verification link. Rendered only when there is at least one.
  */
-function MyCertificates() {
-  const certs = useApi(() => api.myCertificates())
-  const rows = certs.data ?? []
+function MyCertificates({ rows }: { rows: Certificate[] }) {
   if (rows.length === 0) return null
 
   const titles: Record<string, string> = {
@@ -172,13 +299,12 @@ function MyCertificates() {
   }
 
   return (
-    <Card tone="paper" className="mt-8 p-6">
+    <Card tone="paper" className="mt-12 p-6">
       <div className="label-mono text-red">Your certificates</div>
       <p className="mt-2 font-mono text-[0.8rem] text-muted">
-        Each is signed by this instance and publicly verifiable &mdash; the link
-        works for anyone, no account needed.
+        Each is signed by this instance and publicly verifiable &mdash; the link works for anyone, no account needed.
       </p>
-      <ul className="mt-4 flex flex-col gap-2">
+      <ul className="mt-4 grid gap-2 sm:grid-cols-2">
         {rows.map((cert) => (
           <li
             key={cert.id}
@@ -195,103 +321,6 @@ function MyCertificates() {
         ))}
       </ul>
     </Card>
-  )
-}
-
-/** Inline team creation, so an empty dashboard is still actionable. */
-function CreateTeamCard({ eventId, onCreated }: { eventId?: string; onCreated: () => void }) {
-  const [name, setName] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
-
-  const create = async () => {
-    if (!eventId || !name.trim()) return
-    setBusy(true)
-    setError(null)
-    try {
-      await api.createTeam({ name: name.trim(), event_id: eventId })
-      onCreated()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not create the team.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div className="mt-3">
-      <p className="font-mono text-[0.85rem] text-muted">You are not in a team yet.</p>
-      <div className="mt-4 flex flex-col gap-3">
-        <Field
-          label="Team name"
-          placeholder="Null Island"
-          value={name}
-          error={error ?? undefined}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && void create()}
-        />
-        <Button size="sm" disabled={busy || !name.trim() || !eventId} onClick={() => void create()}>
-          {busy ? 'Creating...' : 'Create team'}
-        </Button>
-      </div>
-      <p className="mt-3 font-mono text-[0.72rem] text-subtle">
-        Or open an invite link someone sent you.
-      </p>
-    </div>
-  )
-}
-
-/** Inline project creation; the full form lives on the edit page. */
-function CreateProjectCard({ teamId, disabled, onCreated }: { teamId: string; disabled: boolean; onCreated: () => void }) {
-  const [title, setTitle] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
-
-  const create = async () => {
-    if (!title.trim()) return
-    setBusy(true)
-    setError(null)
-    try {
-      const project = await api.createProject({ team_id: teamId, title: title.trim() })
-      onCreated()
-      window.location.assign(`/projects/${project.id}/edit`)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not create the project.')
-      setBusy(false)
-    }
-  }
-
-  if (disabled) {
-    return <p className="mt-4 font-mono text-[0.85rem] text-muted">Submissions are closed, so no new projects.</p>
-  }
-
-  return (
-    <div className="mt-3">
-      <p className="font-mono text-[0.85rem] text-muted">No project yet. Start a draft.</p>
-      <div className="mt-4 flex flex-col gap-3">
-        <Field
-          label="Project title"
-          placeholder="Quorum"
-          value={title}
-          error={error ?? undefined}
-          onChange={(e) => setTitle(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && void create()}
-        />
-        <Button size="sm" disabled={busy || !title.trim()} onClick={() => void create()} icon="arrowRight">
-          {busy ? 'Creating...' : 'Start draft'}
-        </Button>
-      </div>
-    </div>
-  )
-}
-
-/** Small helper so a Link-styled Button keeps router behaviour where needed. */
-export function RouterLinkButton({ to, children }: { to: string; children: React.ReactNode }) {
-  return (
-    <Link to={to} className="inline-flex items-center gap-2 font-mono text-[0.8rem] font-bold text-blue hover:underline">
-      {children}
-      <Icon name="arrowRight" size={14} />
-    </Link>
   )
 }
 
@@ -323,7 +352,6 @@ function Notifications() {
               <p className={n.is_read ? 'font-mono text-[0.82rem] text-muted' : 'font-mono text-[0.82rem] text-ink'}>
                 {n.message}
               </p>
-              {/* A direct invite carries its token, so it can be acted on here. */}
               {n.reference_token && (
                 <Link
                   to={`/invite/${n.reference_token}`}

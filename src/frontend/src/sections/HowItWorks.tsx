@@ -41,7 +41,7 @@ export function HowItWorks({ event }: { event?: HackEvent }) {
                 </div>
                 <h3 className="mt-8 text-[1.2rem] font-medium tracking-[-0.03em]">{s.title}</h3>
                 <p className={cn('mt-1 font-mono text-[0.64rem] uppercase tracking-[0.12em]', isLive ? 'text-yellow' : 'text-subtle')}>
-                  {isLive ? `${event?.name.split(' ')[0]} is here` : s.who}
+                  {isLive ? 'Happening now' : s.who}
                 </p>
                 <p className={cn('mt-3 text-sm', isLive ? 'opacity-75' : 'text-muted')}>{s.body}</p>
               </Card>
